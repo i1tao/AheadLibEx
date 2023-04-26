@@ -1543,6 +1543,6 @@ void CAheadLibExDlg::OnBnClickedOk()
                 return;
             }
         }
-        AfxMessageBox(_T("Generate code success!"), MB_ICONINFORMATION);
+        AfxMessageBox(_T("Generate project success!"), MB_ICONINFORMATION);
     }
 }
