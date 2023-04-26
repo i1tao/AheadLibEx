@@ -191,7 +191,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="AheadLibCommon.h" />
+    <ClInclude Include="AheadLibCommon.h" />
     <ClCompile Include="AheadLibEx.cpp" />
     <ClCompile Include="AheadLibExDlg.cpp" />
     <ClCompile Include="pch.cpp">

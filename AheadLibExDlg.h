@@ -51,26 +51,43 @@ protected:
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()
+
 public:
-	afx_msg void OnBnClickedButtonInputfile();
 	CEdit m_editInputFile;
 	CEdit m_editOutputFile;
-
-public:
-	BOOL m_bIsx64;
-	CString m_strFileName;
-	CString m_strFilePath;
-	CString m_strProjectPath;
-	HMODULE m_hDll;
-
-	std::vector<IMAGE_SECTION_HEADER> m_vecSectionHdrs;
-	std::vector<EXPORT_FUNCTION> m_vecExportFunc;
+	CEdit m_editInfo;
+	CEdit m_editOutputProject;
+	afx_msg void OnBnClickedButtonInputfile();
 	afx_msg void OnBnClickedButtonOutputfile();
 	afx_msg void OnDropFiles(HDROP hDropInfo);
-	void OnLoadFile();
-	CEdit m_editInfo;
 	afx_msg void OnBnClickedRadioCpp();
-	CEdit m_editOutputProject;
 	afx_msg void OnBnClickedButtonOutputProject();
 	afx_msg void OnBnClickedRadioProject();
+	afx_msg void OnBnClickedOk();
+
+	void OnLoadFile();
+	void OnAnalyzeFile();
+
+	void OnCreateCppSource(CString & strSource, CString& strAsmSource);
+	void OnCreateSln(CString& strSln);
+	void OnCreateVcxproj(CString& strVcxproj);
+	void OnCreateFilters(CString& strFilters);
+
+public:
+	BOOL m_bIsWow64;
+
+	BOOL m_bIsx64;
+	CString m_strFileName;			// xxx.dll
+	CString m_strFilePath;			// C:\\windows\\xxx.dll
+	CString m_strProjectPath;		// C:\\windows\\xxx/
+	CString m_strFileNameNOExtension;			// xxx.cpp
+	CString m_strAsmName;			// xxx_jump.asm
+
+	CString m_strGuidProject;
+	CString m_strGuidVcxproj;
+	CString m_strGuidSolution;
+
+	HMODULE m_hDll;
+	std::vector<IMAGE_SECTION_HEADER> m_vecSectionHdrs;
+	std::vector<EXPORT_FUNCTION> m_vecExportFunc;
 };
