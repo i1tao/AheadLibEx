@@ -1329,7 +1329,6 @@ void CAheadLibExDlg::OnBnClickedButtonOutputProject()
     if (SHGetPathFromIDList(pItemIdList, wszDir))
     {
         CString str;
-        CFileFind ff;
         if (m_strFileName.GetLength())
         {
             CString strFileName;
@@ -1347,11 +1346,6 @@ void CAheadLibExDlg::OnBnClickedButtonOutputProject()
 
         m_strProjectPath = str;
 
-
-        if (!ff.FindFile(str))
-        {
-            CreateDirectory(str, NULL);
-        }
     }
 
 }
@@ -1380,6 +1374,7 @@ void CAheadLibExDlg::OnBnClickedOk()
     m_editInputFile.GetWindowText(m_strFilePath);
     m_editOutputProject.GetWindowText(m_strProjectPath);
     m_strFileName = PathFindFileName(m_strFilePath);
+
     /*
     * 初始化一些字符串
     */
@@ -1390,9 +1385,11 @@ void CAheadLibExDlg::OnBnClickedOk()
 
     m_strAsmName = m_strFileNameNOExtension;
     m_strAsmName += "_jump.asm";
+
     /*
     * 生成文件
     */
+
 
     CString source;
     CString source_asm;
@@ -1435,7 +1432,7 @@ void CAheadLibExDlg::OnBnClickedOk()
         }
 
     }
-    else
+    else   //生成项目文件
     {
         CString strSln;
         CString strSlnPath;
@@ -1475,6 +1472,8 @@ void CAheadLibExDlg::OnBnClickedOk()
         StrAsmPath = m_strProjectPath;
         StrAsmPath += m_strFileNameNOExtension;
         StrAsmPath += _T("_jump.asm");
+
+        CreateDirectory(m_strProjectPath, NULL); //直接创建项目根目录，Cfile.Open只能打开已存在的目录，防止手动编辑框修改目录导致的错误。
 
         OnCreateSln(strSln);
         OnCreateVcxproj(strVcxproj);
