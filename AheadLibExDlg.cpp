@@ -277,7 +277,10 @@ void CAheadLibExDlg::OnDropFiles(HDROP hDropInfo)
 
     DragQueryFile(hDropInfo, 0, szFilePath, MAX_PATH);
     DragFinish(hDropInfo);
+
+    m_editInputFile.SetWindowText(szFilePath);
     m_strFilePath = szFilePath;
+
     OnLoadFile();
 
     CDialogEx::OnDropFiles(hDropInfo);
