@@ -783,8 +783,17 @@ void CAheadLibExDlg::OnCreateCppSource(CString& strSource, CString& strAsmSource
             }
             else
             {
-                str.Format(_T("#pragma comment(linker, \"/EXPORT:%s=_AheadLibEx_%s,@%d\")\r\n"),
-                    ExportFunc.Name.GetString(), ExportFunc.Name.GetString(), ExportFunc.Ordinal);
+                int i = 0;
+                for (; ExportFunc.Name.GetString()[i] == '_'; i++);
+
+                if (i) {
+                    str.Format(_T("#pragma comment(linker, \"/EXPORT:_%s=_AheadLibEx_%s,@%d\")\r\n"),
+                        ExportFunc.Name.GetString(), ExportFunc.Name.GetString(), ExportFunc.Ordinal);
+                }
+                else {
+                    str.Format(_T("#pragma comment(linker, \"/EXPORT:%s=_AheadLibEx_%s,@%d\")\r\n"),
+                        ExportFunc.Name.GetString(), ExportFunc.Name.GetString(), ExportFunc.Ordinal);
+                }
             }
 
         }
