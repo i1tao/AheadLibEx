@@ -783,10 +783,7 @@ void CAheadLibExDlg::OnCreateCppSource(CString& strSource, CString& strAsmSource
             }
             else
             {
-                int i = 0;
-                for (; ExportFunc.Name.GetString()[i] == '_'; i++);
-
-                if (i) {
+                if (ExportFunc.Name.GetString()[0] == '_') {
                     str.Format(_T("#pragma comment(linker, \"/EXPORT:_%s=_AheadLibEx_%s,@%d\")\r\n"),
                         ExportFunc.Name.GetString(), ExportFunc.Name.GetString(), ExportFunc.Ordinal);
                 }
