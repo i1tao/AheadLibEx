@@ -16,7 +16,7 @@
 
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
 
-class CAboutDlg : public CDialogEx
+class CAboutDlg : public CDialog
 {
 public:
     CAboutDlg();
@@ -34,16 +34,16 @@ protected:
     DECLARE_MESSAGE_MAP()
 };
 
-CAboutDlg::CAboutDlg() : CDialogEx(IDD_ABOUTBOX)
+CAboutDlg::CAboutDlg() : CDialog(IDD_ABOUTBOX)
 {
 }
 
 void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 {
-    CDialogEx::DoDataExchange(pDX);
+    CDialog::DoDataExchange(pDX);
 }
 
-BEGIN_MESSAGE_MAP(CAboutDlg, CDialogEx)
+BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
 END_MESSAGE_MAP()
 
 
@@ -52,7 +52,7 @@ END_MESSAGE_MAP()
 
 
 CAheadLibExDlg::CAheadLibExDlg(CWnd* pParent /*=nullptr*/)
-    : CDialogEx(IDD_AHEADLIBEX_DIALOG, pParent)
+    : CDialog(IDD_AHEADLIBEX_DIALOG, pParent)
     , m_bIsx64(false)
     , m_hDll(nullptr)
     , m_bIsWow64(false)
@@ -63,14 +63,14 @@ CAheadLibExDlg::CAheadLibExDlg(CWnd* pParent /*=nullptr*/)
 
 void CAheadLibExDlg::DoDataExchange(CDataExchange* pDX)
 {
-    CDialogEx::DoDataExchange(pDX);
+    CDialog::DoDataExchange(pDX);
     DDX_Control(pDX, IDC_EDIT_INPUTFILE, m_editInputFile);
     DDX_Control(pDX, IDC_EDIT_OUTPUTFILE, m_editOutputFile);
     DDX_Control(pDX, IDC_EDIT_OUTPUTINFO, m_editInfo);
     DDX_Control(pDX, IDC_EDIT_OUTPUTPROJECT, m_editOutputProject);
 }
 
-BEGIN_MESSAGE_MAP(CAheadLibExDlg, CDialogEx)
+BEGIN_MESSAGE_MAP(CAheadLibExDlg, CDialog)
     ON_WM_SYSCOMMAND()
     ON_WM_PAINT()
     ON_WM_QUERYDRAGICON()
@@ -124,7 +124,7 @@ BOOL IsArch64()
 
 BOOL CAheadLibExDlg::OnInitDialog()
 {
-    CDialogEx::OnInitDialog();
+    CDialog::OnInitDialog();
 
     // 将“关于...”菜单项添加到系统菜单中。
 
@@ -189,7 +189,7 @@ void CAheadLibExDlg::OnSysCommand(UINT nID, LPARAM lParam)
     }
     else
     {
-        CDialogEx::OnSysCommand(nID, lParam);
+        CDialog::OnSysCommand(nID, lParam);
     }
 }
 
@@ -218,7 +218,7 @@ void CAheadLibExDlg::OnPaint()
     }
     else
     {
-        CDialogEx::OnPaint();
+        CDialog::OnPaint();
     }
 }
 
@@ -283,7 +283,7 @@ void CAheadLibExDlg::OnDropFiles(HDROP hDropInfo)
 
     OnLoadFile();
 
-    CDialogEx::OnDropFiles(hDropInfo);
+    CDialog::OnDropFiles(hDropInfo);
 }
 
 
@@ -1369,7 +1369,7 @@ void CAheadLibExDlg::OnBnClickedRadioProject()
 void CAheadLibExDlg::OnBnClickedOk()
 {
     // TODO: 在此添加控件通知处理程序代码
-    //CDialogEx::OnOK();
+    //CDialog::OnOK();
 
     /*
     * 不管三七二十一，初始化路径字符串

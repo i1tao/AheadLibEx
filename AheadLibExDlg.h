@@ -26,7 +26,7 @@ typedef struct _EXPORT_FUNCTION
 }EXPORT_FUNCTION, * PEXPORT_FUNCTION;
 
 // CAheadLibExDlg 对话框
-class CAheadLibExDlg : public CDialogEx
+class CAheadLibExDlg : public CDialog
 {
 // 构造
 public:
