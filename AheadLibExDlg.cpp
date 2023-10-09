@@ -289,6 +289,13 @@ void CAheadLibExDlg::OnDropFiles(HDROP hDropInfo)
 
 void CAheadLibExDlg::OnLoadFile()
 {
+    if (m_hDll != NULL)
+    {
+        FreeLibrary(m_hDll);
+        m_hDll = NULL;
+    }
+
+
     if (m_bIsWow64)
     {
         PVOID OldValue = NULL;
@@ -1169,7 +1176,7 @@ void CAheadLibExDlg::OnCreateVcxproj(CString& strVcxproj)
     <ProjectGuid>%s</ProjectGuid>\r\n\
     <RootNamespace>%s</RootNamespace>\r\n\
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>\r\n\
-  </PropertyGroup>"),m_strGuidVcxproj.GetString(),m_strFileNameNOExtension.GetString());
+  </PropertyGroup>"), m_strGuidVcxproj.GetString(), m_strFileNameNOExtension.GetString());
     strVcxproj += g_szVcxProjectEnd;
 }
 void CAheadLibExDlg::OnCreateFilters(CString& strFilters)
@@ -1371,6 +1378,8 @@ void CAheadLibExDlg::OnBnClickedOk()
     // TODO: 在此添加控件通知处理程序代码
     //CDialog::OnOK();
 
+
+
     /*
     * 不管三七二十一，初始化路径字符串
     */
@@ -1389,6 +1398,17 @@ void CAheadLibExDlg::OnBnClickedOk()
     m_strAsmName = m_strFileNameNOExtension;
     m_strAsmName += "_jump.asm";
 
+
+    /*
+    * 判断参数是否合法
+    */
+    if (m_strFilePath.GetLength() <= 0)
+    {
+        AfxMessageBox(_T("No input file!"), MB_ICONINFORMATION);
+        return;
+    }
+
+
     /*
     * 生成文件
     */
@@ -1406,6 +1426,12 @@ void CAheadLibExDlg::OnBnClickedOk()
         CStringA ansiSource;
 
         m_editOutputFile.GetWindowText(outputPath);
+
+        if (outputPath.GetLength() <= 0)
+        {
+            AfxMessageBox(_T("Output file path error!"), MB_ICONINFORMATION);
+            return;
+        }
 
         if (fileOut.Open(outputPath, CFile::modeCreate | CFile::modeWrite))
         {
@@ -1475,6 +1501,13 @@ void CAheadLibExDlg::OnBnClickedOk()
         StrAsmPath = m_strProjectPath;
         StrAsmPath += m_strFileNameNOExtension;
         StrAsmPath += _T("_jump.asm");
+
+        //检查路径是否为空
+        if (m_strProjectPath.GetLength() <= 0)
+        {
+            AfxMessageBox(_T("Project path error!"), MB_ICONINFORMATION);
+            return;
+        }
 
         CreateDirectory(m_strProjectPath, NULL); //直接创建项目根目录，Cfile.Open只能打开已存在的目录，防止手动编辑框修改目录导致的错误。
 
