@@ -1,8 +1,4 @@
-﻿
-// AheadLibExDlg.h: 头文件
-//
-
-#pragma once
+﻿#pragma once
 #include <vector>
 
 typedef struct _EXPORT_FUNCTION
