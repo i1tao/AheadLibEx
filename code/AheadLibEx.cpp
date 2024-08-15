@@ -1,8 +1,4 @@
-﻿
-// AheadLibEx.cpp: 定义应用程序的类行为。
-//
-
-#include "pch.h"
+﻿#include "pch.h"
 #include "framework.h"
 #include "AheadLibEx.h"
 #include "AheadLibExDlg.h"
@@ -12,33 +8,25 @@
 #endif
 
 
-// CAheadLibExApp
+// ahead_lib_ex_app
 
-BEGIN_MESSAGE_MAP(CAheadLibExApp, CWinApp)
+BEGIN_MESSAGE_MAP(ahead_lib_ex_app, CWinApp)
 	ON_COMMAND(ID_HELP, &CWinApp::OnHelp)
 END_MESSAGE_MAP()
 
 
-// CAheadLibExApp 构造
+// ahead_lib_ex_app 构造
 
-CAheadLibExApp::CAheadLibExApp()
+ahead_lib_ex_app::ahead_lib_ex_app()
 {
-	// 支持重新启动管理器
 	m_dwRestartManagerSupportFlags = AFX_RESTART_MANAGER_SUPPORT_RESTART;
-
 	// TODO: 在此处添加构造代码，
 	// 将所有重要的初始化放置在 InitInstance 中
 }
 
+ahead_lib_ex_app the_app;
 
-// 唯一的 CAheadLibExApp 对象
-
-CAheadLibExApp theApp;
-
-
-// CAheadLibExApp 初始化
-
-BOOL CAheadLibExApp::InitInstance()
+BOOL ahead_lib_ex_app::InitInstance()
 {
 	// 如果一个运行在 Windows XP 上的应用程序清单指定要
 	// 使用 ComCtl32.dll 版本 6 或更高版本来启用可视化方式，
@@ -55,7 +43,7 @@ BOOL CAheadLibExApp::InitInstance()
 
 	AfxEnableControlContainer();
 
-	CAheadLibExDlg dlg;
+	ahead_lib_dialog dlg;
 	m_pMainWnd = &dlg;
 	INT_PTR nResponse = dlg.DoModal();
 

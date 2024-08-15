@@ -8,25 +8,13 @@
 	#error "在包含此文件之前包含 'pch.h' 以生成 PCH"
 #endif
 
-#include "resource.h"		// 主符号
-
-
-// CAheadLibExApp:
-// 有关此类的实现，请参阅 AheadLibEx.cpp
-//
-
-class CAheadLibExApp : public CWinApp
+#include "../res/resource.h"
+class ahead_lib_ex_app final :  public CWinApp
 {
 public:
-	CAheadLibExApp();
-
-// 重写
-public:
-	virtual BOOL InitInstance();
-
-// 实现
-
+	ahead_lib_ex_app();
+    BOOL InitInstance() override;
 	DECLARE_MESSAGE_MAP()
 };
 
-extern CAheadLibExApp theApp;
+extern ahead_lib_ex_app the_app;

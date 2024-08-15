@@ -21,20 +21,17 @@ typedef struct _EXPORT_FUNCTION
 
 }EXPORT_FUNCTION, * PEXPORT_FUNCTION;
 
-// CAheadLibExDlg 对话框
-class CAheadLibExDlg : public CDialog
+class ahead_lib_dialog final : public CDialog
 {
-// 构造
 public:
-	CAheadLibExDlg(CWnd* pParent = nullptr);	// 标准构造函数
+    explicit ahead_lib_dialog(CWnd* parent = nullptr);
 
-// 对话框数据
 #ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_AHEADLIBEX_DIALOG };
 #endif
 
 	protected:
-	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 支持
+	virtual void DoDataExchange(CDataExchange* dx);
 
 
 // 实现
@@ -42,8 +39,8 @@ protected:
 	HICON m_hIcon;
 
 	// 生成的消息映射函数
-	virtual BOOL OnInitDialog();
-	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
+    BOOL OnInitDialog() override;
+
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()

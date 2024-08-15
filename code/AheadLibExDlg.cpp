@@ -1,8 +1,4 @@
-﻿
-// AheadLibExDlg.cpp: 实现文件
-//
-
-#include "pch.h"
+﻿#include "pch.h"
 #include "framework.h"
 #include "AheadLibEx.h"
 #include "AheadLibExDlg.h"
@@ -13,74 +9,34 @@
 #define new DEBUG_NEW
 #endif
 
-
-// 用于应用程序“关于”菜单项的 CAboutDlg 对话框
-
-class CAboutDlg : public CDialog
-{
-public:
-    CAboutDlg();
-
-    // 对话框数据
-#ifdef AFX_DESIGN_TIME
-    enum { IDD = IDD_ABOUTBOX };
-#endif
-
-protected:
-    virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV 支持
-
-    // 实现
-protected:
-    DECLARE_MESSAGE_MAP()
-};
-
-CAboutDlg::CAboutDlg() : CDialog(IDD_ABOUTBOX)
-{
-}
-
-void CAboutDlg::DoDataExchange(CDataExchange* pDX)
-{
-    CDialog::DoDataExchange(pDX);
-}
-
-BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
-END_MESSAGE_MAP()
-
-
-// CAheadLibExDlg 对话框
-
-
-
-CAheadLibExDlg::CAheadLibExDlg(CWnd* pParent /*=nullptr*/)
-    : CDialog(IDD_AHEADLIBEX_DIALOG, pParent)
+ahead_lib_dialog::ahead_lib_dialog(CWnd* parent )
+    : CDialog(IDD_AHEADLIBEX_DIALOG, parent)
+    , m_bIsWow64(false)
     , m_bIsx64(false)
     , m_hDll(nullptr)
-    , m_bIsWow64(false)
-
 {
     m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
 
-void CAheadLibExDlg::DoDataExchange(CDataExchange* pDX)
+void ahead_lib_dialog::DoDataExchange(CDataExchange* dx)
 {
-    CDialog::DoDataExchange(pDX);
-    DDX_Control(pDX, IDC_EDIT_INPUTFILE, m_editInputFile);
-    DDX_Control(pDX, IDC_EDIT_OUTPUTFILE, m_editOutputFile);
-    DDX_Control(pDX, IDC_EDIT_OUTPUTINFO, m_editInfo);
-    DDX_Control(pDX, IDC_EDIT_OUTPUTPROJECT, m_editOutputProject);
+    CDialog::DoDataExchange(dx);
+    DDX_Control(dx, IDC_EDIT_INPUTFILE, m_editInputFile);
+    DDX_Control(dx, IDC_EDIT_OUTPUTFILE, m_editOutputFile);
+    DDX_Control(dx, IDC_EDIT_OUTPUTINFO, m_editInfo);
+    DDX_Control(dx, IDC_EDIT_OUTPUTPROJECT, m_editOutputProject);
 }
 
-BEGIN_MESSAGE_MAP(CAheadLibExDlg, CDialog)
-    ON_WM_SYSCOMMAND()
+BEGIN_MESSAGE_MAP(ahead_lib_dialog, CDialog)
     ON_WM_PAINT()
     ON_WM_QUERYDRAGICON()
-    ON_BN_CLICKED(IDC_BUTTON_INPUTFILE, &CAheadLibExDlg::OnBnClickedButtonInputfile)
-    ON_BN_CLICKED(IDC_BUTTON_OUTPUTFILE, &CAheadLibExDlg::OnBnClickedButtonOutputfile)
+    ON_BN_CLICKED(IDC_BUTTON_INPUTFILE, &ahead_lib_dialog::OnBnClickedButtonInputfile)
+    ON_BN_CLICKED(IDC_BUTTON_OUTPUTFILE, &ahead_lib_dialog::OnBnClickedButtonOutputfile)
     ON_WM_DROPFILES()
-    ON_BN_CLICKED(IDC_RADIO_CPP, &CAheadLibExDlg::OnBnClickedRadioCpp)
-    ON_BN_CLICKED(IDC_BUTTON_OUTPUTPROJECT, &CAheadLibExDlg::OnBnClickedButtonOutputProject)
-    ON_BN_CLICKED(IDC_RADIO_PROJECT, &CAheadLibExDlg::OnBnClickedRadioProject)
-    ON_BN_CLICKED(IDOK, &CAheadLibExDlg::OnBnClickedOk)
+    ON_BN_CLICKED(IDC_RADIO_CPP, &ahead_lib_dialog::OnBnClickedRadioCpp)
+    ON_BN_CLICKED(IDC_BUTTON_OUTPUTPROJECT, &ahead_lib_dialog::OnBnClickedButtonOutputProject)
+    ON_BN_CLICKED(IDC_RADIO_PROJECT, &ahead_lib_dialog::OnBnClickedRadioProject)
+    ON_BN_CLICKED(IDOK, &ahead_lib_dialog::OnBnClickedOk)
 END_MESSAGE_MAP()
 
 
@@ -120,36 +76,13 @@ BOOL IsArch64()
     return FALSE;
 }
 
-// CAheadLibExDlg 消息处理程序
+// ahead_lib_dialog 消息处理程序
 
-BOOL CAheadLibExDlg::OnInitDialog()
+BOOL ahead_lib_dialog::OnInitDialog()
 {
     CDialog::OnInitDialog();
-
-    // 将“关于...”菜单项添加到系统菜单中。
-
-    // IDM_ABOUTBOX 必须在系统命令范围内。
-    ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
-    ASSERT(IDM_ABOUTBOX < 0xF000);
-
-    CMenu* pSysMenu = GetSystemMenu(FALSE);
-    if (pSysMenu != nullptr)
-    {
-        BOOL bNameValid;
-        CString strAboutMenu;
-        bNameValid = strAboutMenu.LoadString(IDS_ABOUTBOX);
-        ASSERT(bNameValid);
-        if (!strAboutMenu.IsEmpty())
-        {
-            pSysMenu->AppendMenu(MF_SEPARATOR);
-            pSysMenu->AppendMenu(MF_STRING, IDM_ABOUTBOX, strAboutMenu);
-        }
-    }
-
-    // 设置此对话框的图标。  当应用程序主窗口不是对话框时，框架将自动
-    //  执行此操作
-    SetIcon(m_hIcon, TRUE);			// 设置大图标
-    SetIcon(m_hIcon, FALSE);		// 设置小图标
+    SetIcon(m_hIcon, TRUE);
+    SetIcon(m_hIcon, FALSE);	
 
     // TODO: 在此添加额外的初始化代码
 
@@ -164,13 +97,14 @@ BOOL CAheadLibExDlg::OnInitDialog()
     ((CButton*)GetDlgItem(IDC_RADIO_CPP))->SetCheck(true);
     m_editOutputProject.EnableWindow(false);
     GetDlgItem(IDC_BUTTON_OUTPUTPROJECT)->EnableWindow(false);
+    GetDlgItem(IDC_COMBO_PROJECT_VERSION)->EnableWindow(false);
 
     //初始化欢迎信息
 
     CString strWelcome;
     strWelcome += _T("------------------------------------------------------------------------\r\n");
     strWelcome += _T("Author: " TEXT(" ") STR_AUTHOR_NAME "\r\n");
-    strWelcome += (STR_GITHUB_ADDRESS _T("\r\n"));
+    strWelcome += STR_GITHUB_ADDRESS _T("\r\n");
     strWelcome += STR_COPYRIGHT;
     strWelcome += _T("\r\n");
     strWelcome += _T("------------------------------------------------------------------------\r\n");
@@ -180,32 +114,14 @@ BOOL CAheadLibExDlg::OnInitDialog()
     return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
-void CAheadLibExDlg::OnSysCommand(UINT nID, LPARAM lParam)
-{
-    if ((nID & 0xFFF0) == IDM_ABOUTBOX)
-    {
-        CAboutDlg dlgAbout;
-        dlgAbout.DoModal();
-    }
-    else
-    {
-        CDialog::OnSysCommand(nID, lParam);
-    }
-}
-
-// 如果向对话框添加最小化按钮，则需要下面的代码
-//  来绘制该图标。  对于使用文档/视图模型的 MFC 应用程序，
-//  这将由框架自动完成。
-
-void CAheadLibExDlg::OnPaint()
+void ahead_lib_dialog::OnPaint()
 {
     if (IsIconic())
     {
-        CPaintDC dc(this); // 用于绘制的设备上下文
+        CPaintDC dc(this);
 
         SendMessage(WM_ICONERASEBKGND, reinterpret_cast<WPARAM>(dc.GetSafeHdc()), 0);
 
-        // 使图标在工作区矩形中居中
         int cxIcon = GetSystemMetrics(SM_CXICON);
         int cyIcon = GetSystemMetrics(SM_CYICON);
         CRect rect;
@@ -213,7 +129,6 @@ void CAheadLibExDlg::OnPaint()
         int x = (rect.Width() - cxIcon + 1) / 2;
         int y = (rect.Height() - cyIcon + 1) / 2;
 
-        // 绘制图标
         dc.DrawIcon(x, y, m_hIcon);
     }
     else
@@ -224,14 +139,12 @@ void CAheadLibExDlg::OnPaint()
 
 //当用户拖动最小化窗口时系统调用此函数取得光标
 //显示。
-HCURSOR CAheadLibExDlg::OnQueryDragIcon()
+HCURSOR ahead_lib_dialog::OnQueryDragIcon()
 {
     return static_cast<HCURSOR>(m_hIcon);
 }
 
-
-
-void CAheadLibExDlg::OnBnClickedButtonInputfile()
+void ahead_lib_dialog::OnBnClickedButtonInputfile()
 {
     // TODO: 在此添加控件通知处理程序代码
 
@@ -250,7 +163,7 @@ void CAheadLibExDlg::OnBnClickedButtonInputfile()
 }
 
 
-void CAheadLibExDlg::OnBnClickedButtonOutputfile()
+void ahead_lib_dialog::OnBnClickedButtonOutputfile()
 {
     // TODO: 在此添加控件通知处理程序代码
 
@@ -269,7 +182,7 @@ void CAheadLibExDlg::OnBnClickedButtonOutputfile()
 }
 
 
-void CAheadLibExDlg::OnDropFiles(HDROP hDropInfo)
+void ahead_lib_dialog::OnDropFiles(HDROP hDropInfo)
 {
     // TODO: 在此添加消息处理程序代码和/或调用默认值
 
@@ -287,7 +200,7 @@ void CAheadLibExDlg::OnDropFiles(HDROP hDropInfo)
 }
 
 
-void CAheadLibExDlg::OnLoadFile()
+void ahead_lib_dialog::OnLoadFile()
 {
     if (m_hDll != NULL)
     {
@@ -340,7 +253,7 @@ void CAheadLibExDlg::OnLoadFile()
     OnAnalyzeFile();
 }
 
-void CAheadLibExDlg::OnAnalyzeFile()
+void ahead_lib_dialog::OnAnalyzeFile()
 {
     PIMAGE_DOS_HEADER pDosHdr = NULL;
     PIMAGE_NT_HEADERS pNtHdr = NULL;
@@ -755,7 +668,7 @@ _END:
     FreeLibrary(m_hDll);
 }
 
-void CAheadLibExDlg::OnCreateCppSource(CString& strSource, CString& strAsmSource)
+void ahead_lib_dialog::OnCreateCppSource(CString& strSource, CString& strAsmSource)
 {
     CString str;
     strSource += g_szCppHeader;
@@ -1032,7 +945,7 @@ void CAheadLibExDlg::OnCreateCppSource(CString& strSource, CString& strAsmSource
     }
 }
 
-void CAheadLibExDlg::OnCreateSln(CString& strSln)
+void ahead_lib_dialog::OnCreateSln(CString& strSln)
 {
     CString str;
 
@@ -1156,7 +1069,7 @@ void CAheadLibExDlg::OnCreateSln(CString& strSln)
     strSln += L"\tEndGlobalSection\r\nEndGlobal";
 
 }
-void CAheadLibExDlg::OnCreateVcxproj(CString& strVcxproj)
+void ahead_lib_dialog::OnCreateVcxproj(CString& strVcxproj)
 {
     CString str;
 
@@ -1179,7 +1092,7 @@ void CAheadLibExDlg::OnCreateVcxproj(CString& strVcxproj)
   </PropertyGroup>"), m_strGuidVcxproj.GetString(), m_strFileNameNOExtension.GetString());
     strVcxproj += g_szVcxProjectEnd;
 }
-void CAheadLibExDlg::OnCreateFilters(CString& strFilters)
+void ahead_lib_dialog::OnCreateFilters(CString& strFilters)
 {
     CString str;
 
@@ -1301,7 +1214,7 @@ void CAheadLibExDlg::OnCreateFilters(CString& strFilters)
 </Project>)";
 
 }
-void CAheadLibExDlg::OnBnClickedRadioCpp()
+void ahead_lib_dialog::OnBnClickedRadioCpp()
 {
     // TODO: 在此添加控件通知处理程序代码
     m_editOutputProject.EnableWindow(false);
@@ -1309,10 +1222,12 @@ void CAheadLibExDlg::OnBnClickedRadioCpp()
 
     m_editOutputFile.EnableWindow(true);
     GetDlgItem(IDC_BUTTON_OUTPUTFILE)->EnableWindow(true);
+
+    GetDlgItem(IDC_COMBO_PROJECT_VERSION)->EnableWindow(false);
 }
 
 
-void CAheadLibExDlg::OnBnClickedButtonOutputProject()
+void ahead_lib_dialog::OnBnClickedButtonOutputProject()
 {
     // TODO: 在此添加控件通知处理程序代码
     TCHAR wszDir[MAX_PATH] = {};
@@ -1361,7 +1276,7 @@ void CAheadLibExDlg::OnBnClickedButtonOutputProject()
 }
 
 
-void CAheadLibExDlg::OnBnClickedRadioProject()
+void ahead_lib_dialog::OnBnClickedRadioProject()
 {
     // TODO: 在此添加控件通知处理程序代码
 
@@ -1370,10 +1285,13 @@ void CAheadLibExDlg::OnBnClickedRadioProject()
 
     m_editOutputProject.EnableWindow(true);
     GetDlgItem(IDC_BUTTON_OUTPUTPROJECT)->EnableWindow(true);
+
+    GetDlgItem(IDC_COMBO_PROJECT_VERSION)->EnableWindow(true);
+    
 }
 
 
-void CAheadLibExDlg::OnBnClickedOk()
+void ahead_lib_dialog::OnBnClickedOk()
 {
     // TODO: 在此添加控件通知处理程序代码
     //CDialog::OnOK();
