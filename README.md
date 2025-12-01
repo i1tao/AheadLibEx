@@ -1,10 +1,14 @@
-# AheadLibEx
-hijack dll Source Code Generator .
-There are two ways to generate , you can choose create the cpp sourece or create visual studio solution .
+# AheadLibEx (Rust)
 
-<img src="https://github.com/i1tao/AheadLibEx/blob/master/screenshot.png" style="zoom:22%;" />
+Rust rewrite this project. It inspects a DLL’s export table and generates the proxy sources you need to build a hijack DLL, plus an optional ready-to-open Visual Studio project.
 
-## Compilation
-In order to compile project you need  Visual Studio 2022(with MFC)
-## Special thanks to
-[AheadLib-x86-x64](https://github.com/strivexjun/AheadLib-x86-x64)  xjun
+
+## Refactor Timeline
+
+- **2025-12-01**: Rebuilt the GUI layer in Rust with a fixed layout, unified theming, and decoupled event handling.
+
+
+## Credits
+
+- Original idea and C++ implementation: [AheadLibEx](https://github.com/i1tao/AheadLibEx)
+- Based on AheadLib-x86-x64 by [strivexjun](https://github.com/strivexjun/AheadLib-x86-x64)

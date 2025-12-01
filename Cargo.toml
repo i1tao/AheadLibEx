@@ -1,0 +1,16 @@
+[package]
+name = "aheadlibex-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+eframe = { version = "0.28", default-features = false, features = ["glow"] }
+rfd = "0.14"
+
+[profile.release]
+opt-level = "z"
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
