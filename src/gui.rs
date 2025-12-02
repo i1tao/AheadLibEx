@@ -1,8 +1,6 @@
+use crate::ui_events::{generate, handle_drop, pick_dir, pick_dll, reset, UiState, PROJECT_TYPES};
 use anyhow::Result;
 use eframe::egui::{self, Color32, Frame, RichText, Rounding, Stroke, ViewportCommand};
-
-mod ui_events;
-use ui_events::{self as events, UiState};
 
 mod colors {
     use eframe::egui::Color32;
@@ -57,7 +55,6 @@ pub fn launch_gui() -> Result<()> {
 
 fn setup_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
-    // 这个SB字体兼容需求得照顾win7-win10，所以多试几个系统自带字体
     for path in FONT_CANDIDATES {
         if let Ok(bytes) = std::fs::read(path) {
             let name = path.to_string();
@@ -108,21 +105,13 @@ struct App {
     state: UiState,
 }
 
-const PROJECT_TYPES: [&str; 4] = [
-    "Visual Studio 2022",
-    "Visual Studio 2019",
-    "Visual Studio 2017",
-    "CMake",
-];
-
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
-        events::handle_drop(&mut self.state, ctx);
+        handle_drop(&mut self.state, ctx);
 
         egui::CentralPanel::default()
             .frame(Frame::none().fill(colors::BG_PRIMARY).inner_margin(20.0))
             .show(ctx, |ui| {
-                // Title
                 ui.horizontal(|ui| {
                     ui.label(
                         RichText::new("AheadLibEx")
@@ -146,7 +135,6 @@ impl eframe::App for App {
 
                 ui.add_space(12.0);
 
-                // Main panels
                 let available = ui.available_size();
                 let panel_width = (available.x - SPACING) / 2.0;
 
@@ -164,7 +152,6 @@ impl eframe::App for App {
 
                 ui.add_space(12.0);
 
-                // Buttons
                 ui.horizontal(|ui| {
                     let total_width = BUTTON_WIDTH * 3.0 + SPACING * 2.0;
                     let offset = (ui.available_width() - total_width) / 2.0;
@@ -178,14 +165,14 @@ impl eframe::App for App {
                         )
                         .clicked()
                     {
-                        events::generate(&mut self.state);
+                        generate(&mut self.state);
                     }
 
                     if ui
                         .add_sized([BUTTON_WIDTH, CONTROL_HEIGHT], egui::Button::new("Reset"))
                         .clicked()
                     {
-                        events::reset(&mut self.state);
+                        reset(&mut self.state);
                     }
 
                     if ui
@@ -198,21 +185,25 @@ impl eframe::App for App {
 
                 ui.add_space(8.0);
 
-                // Copyright (centered)
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
-                    let total_width = 280.0; // approximate width of copyright text
+                    let total_width = 280.0;
                     let offset = (ui.available_width() - total_width) / 2.0;
                     ui.add_space(offset.max(0.0));
-                    ui.label(RichText::new("© 2025 i1tao").size(11.0).color(colors::TEXT_HINT));
+                    ui.label(
+                        RichText::new("(c) 2025 i1tao")
+                            .size(11.0)
+                            .color(colors::TEXT_HINT),
+                    );
                     ui.label(RichText::new("|").size(11.0).color(colors::TEXT_HINT));
                     ui.hyperlink_to(
-                        RichText::new("github.com/i1tao/aheadlibex").size(11.0).color(colors::ACCENT),
+                        RichText::new("github.com/i1tao/aheadlibex")
+                            .size(11.0)
+                            .color(colors::ACCENT),
                         "https://github.com/i1tao/aheadlibex",
                     );
                 });
 
-                // Drag overlay
                 if self.state.dragging {
                     let rect = ctx.screen_rect();
                     ui.painter().rect_filled(
@@ -257,7 +248,6 @@ impl App {
                 ui.set_height(CARD_HEIGHT);
                 let input_width = ui.available_width() - BROWSE_BTN_WIDTH - SPACING;
 
-                // DLL Input
                 ui.label(
                     RichText::new("Input DLL")
                         .size(12.0)
@@ -280,7 +270,7 @@ impl App {
                         )
                         .clicked()
                     {
-                        events::pick_dll(state);
+                        pick_dll(state);
                     }
                 });
 
@@ -288,7 +278,6 @@ impl App {
                 ui.separator();
                 ui.add_space(SPACING);
 
-                // Project Type
                 ui.label(
                     RichText::new("Project Type")
                         .size(12.0)
@@ -306,7 +295,6 @@ impl App {
 
                 ui.add_space(SPACING);
 
-                // Output Directory
                 ui.label(
                     RichText::new("Output Directory")
                         .size(12.0)
@@ -329,7 +317,7 @@ impl App {
                         )
                         .clicked()
                     {
-                        events::pick_dir(state);
+                        pick_dir(state);
                     }
                 });
             });
@@ -365,12 +353,12 @@ impl App {
             .show(ui, |ui| {
                 ui.set_height(CARD_HEIGHT);
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.add(
-                        egui::TextEdit::multiline(&mut state.log)
-                            .desired_width(f32::INFINITY)
-                            .font(egui::TextStyle::Monospace)
-                            .frame(false),
-                    );
+                    egui::TextEdit::multiline(&mut state.log)
+                        .desired_width(f32::INFINITY)
+                        .font(egui::TextStyle::Monospace)
+                        .frame(false)
+                        .interactive(false)
+                        .show(ui);
                 });
             });
     }
