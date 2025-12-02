@@ -3,6 +3,8 @@
 mod dll;
 mod gui;
 mod ui_events;
+#[allow(dead_code)]
+mod templates;
 
 use anyhow::Result;
 

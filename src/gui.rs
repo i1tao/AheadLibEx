@@ -1,4 +1,4 @@
-use crate::ui_events::{generate, handle_drop, pick_dir, pick_dll, reset, UiState, PROJECT_TYPES};
+use crate::ui_events::{generate, handle_drop, pick_dir, pick_dll, reset, UiState};
 use anyhow::Result;
 use eframe::egui::{self, Color32, Frame, RichText, Rounding, Stroke, ViewportCommand};
 
@@ -157,13 +157,22 @@ impl eframe::App for App {
                     let offset = (ui.available_width() - total_width) / 2.0;
                     ui.add_space(offset.max(0.0));
 
+                    let any_target = self.state.output_source
+                        || self.state.output_vs2022
+                        || self.state.output_vs2026;
+
                     if ui
                         .add_sized(
                             [BUTTON_WIDTH, CONTROL_HEIGHT],
                             egui::Button::new(RichText::new("Generate").color(Color32::WHITE))
-                                .fill(colors::ACCENT),
+                                .fill(if any_target { colors::ACCENT } else { colors::BORDER })
+                                .sense(if any_target {
+                                    egui::Sense::click()
+                                } else {
+                                    egui::Sense::hover()
+                                }),
                         )
-                        .clicked()
+                        .clicked() && any_target
                     {
                         generate(&mut self.state);
                     }
@@ -229,6 +238,26 @@ impl eframe::App for App {
 }
 
 impl App {
+    fn output_checkbox(ui: &mut egui::Ui, label: &str, state: &mut bool, others: &mut [&mut bool]) {
+        let clicked = ui.checkbox(state, label).clicked();
+        if clicked && *state {
+            for o in others.iter_mut() {
+                **o = false;
+            }
+        }
+    }
+
+    fn select_only_one(
+        ui: &mut egui::Ui,
+        source: &mut bool,
+        vs2022: &mut bool,
+        vs2026: &mut bool,
+    ) {
+        Self::output_checkbox(ui, "Source", source, &mut [vs2022, vs2026]);
+        Self::output_checkbox(ui, "VS2022", vs2022, &mut [source, vs2026]);
+        Self::output_checkbox(ui, "VS2026", vs2026, &mut [source, vs2022]);
+    }
+
     fn left_panel(&mut self, ui: &mut egui::Ui) {
         let state = &mut self.state;
 
@@ -279,19 +308,19 @@ impl App {
                 ui.add_space(SPACING);
 
                 ui.label(
-                    RichText::new("Project Type")
+                    RichText::new("Outputs")
                         .size(12.0)
                         .color(colors::TEXT_SECONDARY),
                 );
                 ui.add_space(4.0);
-                egui::ComboBox::from_id_source("proj_type")
-                    .selected_text(PROJECT_TYPES[state.project_type])
-                    .width(200.0)
-                    .show_ui(ui, |ui| {
-                        for (i, name) in PROJECT_TYPES.iter().enumerate() {
-                            ui.selectable_value(&mut state.project_type, i, *name);
-                        }
-                    });
+                ui.vertical(|ui| {
+                    Self::select_only_one(
+                        ui,
+                        &mut state.output_source,
+                        &mut state.output_vs2022,
+                        &mut state.output_vs2026,
+                    );
+                });
 
                 ui.add_space(SPACING);
 
@@ -352,14 +381,16 @@ impl App {
             .inner_margin(CARD_PADDING)
             .show(ui, |ui| {
                 ui.set_height(CARD_HEIGHT);
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    egui::TextEdit::multiline(&mut state.log)
-                        .desired_width(f32::INFINITY)
-                        .font(egui::TextStyle::Monospace)
-                        .frame(false)
-                        .interactive(false)
-                        .show(ui);
-                });
+                egui::ScrollArea::vertical()
+                    .stick_to_bottom(true)
+                    .show(ui, |ui| {
+                        egui::TextEdit::multiline(&mut state.log)
+                            .desired_width(f32::INFINITY)
+                            .font(egui::TextStyle::Monospace)
+                            .frame(false)
+                            .interactive(false)
+                            .show(ui);
+                    });
             });
     }
 }

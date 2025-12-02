@@ -362,6 +362,9 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 
+# Serena tool state
+.serena/
+
 # Added by cargo
 
 /target

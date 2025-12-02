@@ -9,6 +9,7 @@ eframe = { version = "0.28", default-features = false, features = ["glow"] }
 rfd = "0.14"
 goblin = { version = "0.8", default-features = false, features = ["pe64", "std"] }
 memmap2 = "0.9"
+uuid = { version = "1", features = ["v4", "fast-rng"] }
 
 [profile.release]
 opt-level = "z"
