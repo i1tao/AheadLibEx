@@ -15,6 +15,7 @@ Rust rewrite this project. It inspects a DLL’s export table and generates the 
 - **2025-12-02 (Part 2)**: Added templated VS2022 project/source generation (C/ASM + sln/vcxproj), grouped templates under `templates/`, and updated GUI to pick outputs via single-select checkboxes with auto-scroll logs.
 - **2025-12-03 (Part 1)**: Added VS2026 templates (slnx/vcxproj/filters/user) alongside shared C/ASM templates; GUI supports generating VS2026 projects;
 - **2025-12-03 (Part 2)**: Generation now follows DLL architecture: x86 only emits proxy C; x64 emits C + jump ASM; VS2022/VS2026 templates trim configs/files per arch, filters/platforms adjust, nested placeholders resolve correctly, and x86 trampolines use `AHEADLIB_EXTERN` for C++ builds.
+- **2025-12-04**: Exports macro now derives from the project name (sanitized upper-case with `_EXPORTS` suffix), replacing the hardcoded `DLLTEST_EXPORTS`; both VS2022/VS2026 vcxproj templates inject the project-specific macro for x86/x64 builds.
 
 
 ## Credits

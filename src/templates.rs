@@ -253,13 +253,24 @@ fn property_sheets(is_x64: bool) -> String {
     }
 }
 
-fn item_definitions(is_x64: bool) -> String {
+fn exports_macro(project_name: &str) -> String {
+    let mut macro_name = sanitize_identifier(project_name);
+    macro_name.make_ascii_uppercase();
+    if macro_name.ends_with("_EXPORTS") {
+        macro_name
+    } else {
+        format!("{}_EXPORTS", macro_name)
+    }
+}
+
+fn item_definitions(exports_macro: &str, is_x64: bool) -> String {
     if is_x64 {
-        r#"  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+        format!(
+            r#"  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;DLLTEST_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;{EXPORTS_MACRO};_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -276,7 +287,7 @@ fn item_definitions(is_x64: bool) -> String {
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;DLLTEST_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;{EXPORTS_MACRO};_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -289,14 +300,16 @@ fn item_definitions(is_x64: bool) -> String {
       <EnableUAC>false</EnableUAC>
     </Link>
   </ItemDefinitionGroup>
-"#
-        .to_string()
+"#,
+            EXPORTS_MACRO = exports_macro
+        )
     } else {
-        r#"  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+        format!(
+            r#"  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;DLLTEST_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;{EXPORTS_MACRO};_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -313,7 +326,7 @@ fn item_definitions(is_x64: bool) -> String {
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;DLLTEST_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;{EXPORTS_MACRO};_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -326,8 +339,9 @@ fn item_definitions(is_x64: bool) -> String {
       <EnableUAC>false</EnableUAC>
     </Link>
   </ItemDefinitionGroup>
-"#
-        .to_string()
+"#,
+            EXPORTS_MACRO = exports_macro
+        )
     }
 }
 
@@ -397,6 +411,7 @@ pub fn render_solution(ctx: &VsTemplateContext, is_x64: bool) -> String {
 }
 
 pub fn render_vcxproj(ctx: &VsTemplateContext, is_x64: bool) -> String {
+    let exports_macro = exports_macro(ctx.project_name);
     fill(
         TPL_VCXPROJ,
         &[
@@ -407,7 +422,7 @@ pub fn render_vcxproj(ctx: &VsTemplateContext, is_x64: bool) -> String {
             ("ASM_ITEM_GROUP", asm_item_group(ctx.base_name, is_x64)),
             ("CONFIG_GROUPS", config_groups("v143", is_x64)),
             ("PROPERTY_SHEETS", property_sheets(is_x64)),
-            ("ITEM_DEFINITIONS", item_definitions(is_x64)),
+            ("ITEM_DEFINITIONS", item_definitions(&exports_macro, is_x64)),
             ("EXTENSION_SETTINGS", extension_settings(is_x64)),
             ("EXTENSION_TARGETS", extension_targets(is_x64)),
         ],
@@ -415,6 +430,7 @@ pub fn render_vcxproj(ctx: &VsTemplateContext, is_x64: bool) -> String {
 }
 
 pub fn render_vcxproj_2026(ctx: &VsTemplateContext, is_x64: bool) -> String {
+    let exports_macro = exports_macro(ctx.project_name);
     fill(
         TPL_VCXPROJ_2026,
         &[
@@ -430,7 +446,7 @@ pub fn render_vcxproj_2026(ctx: &VsTemplateContext, is_x64: bool) -> String {
             ("ASM_ITEM_GROUP", asm_item_group(ctx.base_name, is_x64)),
             ("CONFIG_GROUPS", config_groups("v145", is_x64)),
             ("PROPERTY_SHEETS", property_sheets(is_x64)),
-            ("ITEM_DEFINITIONS", item_definitions(is_x64)),
+            ("ITEM_DEFINITIONS", item_definitions(&exports_macro, is_x64)),
             ("EXTENSION_SETTINGS", extension_settings(is_x64)),
             ("EXTENSION_TARGETS", extension_targets(is_x64)),
         ],
