@@ -2,6 +2,12 @@
 
 Rust rewrite this project. It inspects a DLL’s export table and generates the proxy sources you need to build a hijack DLL, plus an optional ready-to-open Visual Studio project.
 
+## Features
+- Parse PE export table, detect DLL architecture (x86/x64), and log export names/ordinals/forwarders.
+- Generate proxy sources: x86 emits C proxy; x64 emits C proxy + jump-table ASM; placeholders resolve cleanly for C/C++ builds.
+- Emit ready-to-build VS2022/VS2026 projects with configs/files trimmed to the DLL arch; single-select output (sources or VS project).
+- GUI with drag/drop DLL, directory picker, and read-only log; English UI/logs.
+
 ## Refactor Timeline
 
 - **2025-12-01**: Rebuilt the GUI layer in Rust with a fixed layout, unified theming, and decoupled event handling.
@@ -17,3 +23,7 @@ Rust rewrite this project. It inspects a DLL’s export table and generates the 
 - Based on AheadLib-x86-x64 by [strivexjun](https://github.com/strivexjun/AheadLib-x86-x64)
 - Thanks to [JetBrains](https://www.jetbrains.com/?from=i1tao) for providing free licenses such as [RustRover](https://www.jetbrains.com/Rust/?from=i1tao) for my open-source projects.
 [<img src="https://resources.jetbrains.com/storage/products/company/brand/logos/RustRover_icon.png" alt="RustRover logo." width=200>](https://www.jetbrains.com/?from=i1tao)
+
+## License
+
+GPL-3.0-only. See `LICENSE`.
