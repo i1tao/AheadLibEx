@@ -37,6 +37,10 @@ const TPL_FILTERS: &str = include_str!("../templates/vs2022/vs2022_filters.vcxpr
 const TPL_USER: &str = include_str!("../templates/vs2022/vs2022_project.vcxproj.user.tpl");
 const TPL_C: &str = include_str!("../templates/common/proxy.c.tpl");
 const TPL_ASM: &str = include_str!("../templates/common/proxy_jump.asm.tpl");
+const TPL_VCXPROJ_2026: &str = include_str!("../templates/vs2026/vs2026_project.vcxproj.tpl");
+const TPL_FILTERS_2026: &str = include_str!("../templates/vs2026/vs2026_project.vcxproj.filters.tpl");
+const TPL_USER_2026: &str = include_str!("../templates/vs2026/vs2026_project.vcxproj.user.tpl");
+const TPL_SLNX_2026: &str = include_str!("../templates/vs2026/vs2026_solution.slnx.tpl");
 
 fn fill(template: &str, pairs: &[(&str, String)]) -> String {
     let mut out = template.to_string();
@@ -122,6 +126,21 @@ pub fn render_vcxproj(ctx: &VsTemplateContext) -> String {
     )
 }
 
+pub fn render_vcxproj_2026(ctx: &VsTemplateContext) -> String {
+    fill(
+        TPL_VCXPROJ_2026,
+        &[
+            ("PROJECT_NAME", ctx.project_name.to_string()),
+            (
+                "PROJECT_NAME_UPPER",
+                ctx.project_name.to_string().to_ascii_uppercase(),
+            ),
+            ("PROJECT_GUID", ctx.guids.project.to_string()),
+            ("BASE", ctx.base_name.to_string()),
+        ],
+    )
+}
+
 pub fn render_filters(ctx: &VsTemplateContext) -> String {
     fill(
         TPL_FILTERS,
@@ -134,8 +153,31 @@ pub fn render_filters(ctx: &VsTemplateContext) -> String {
     )
 }
 
+pub fn render_filters_2026(ctx: &VsTemplateContext) -> String {
+    fill(
+        TPL_FILTERS_2026,
+        &[
+            ("BASE", ctx.base_name.to_string()),
+            ("GUID_SOURCE", ctx.guids.filter_source.to_string()),
+            ("GUID_HEADER", ctx.guids.filter_header.to_string()),
+            ("GUID_RESOURCE", ctx.guids.filter_resource.to_string()),
+        ],
+    )
+}
+
 pub fn render_user() -> String {
     TPL_USER.to_string()
+}
+
+pub fn render_user_2026() -> String {
+    TPL_USER_2026.to_string()
+}
+
+pub fn render_slnx_2026(ctx: &VsTemplateContext) -> String {
+    fill(
+        TPL_SLNX_2026,
+        &[("PROJECT_NAME", ctx.project_name.to_string())],
+    )
 }
 
 pub fn render_c(ctx: &VsTemplateContext) -> String {

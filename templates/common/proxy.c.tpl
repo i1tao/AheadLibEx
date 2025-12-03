@@ -2,6 +2,7 @@
 // Author:i1tao
 // Blog:https://www.winsec.cn
 // Github:https://github.com/i1tao/AheadLibEx
+
 // Auto proxy for {{DLL_NAME}}
 
 #include <windows.h>

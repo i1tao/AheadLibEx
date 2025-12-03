@@ -2,8 +2,8 @@ use std::{env, path::Path};
 
 use crate::dll;
 use crate::templates::{
-    render_asm, render_c, render_filters, render_solution, render_user, render_vcxproj, VsGuids,
-    VsTemplateContext,
+    render_asm, render_c, render_filters, render_filters_2026, render_solution, render_slnx_2026,
+    render_user, render_user_2026, render_vcxproj, render_vcxproj_2026, VsGuids, VsTemplateContext,
 };
 use eframe::egui;
 use rfd;
@@ -164,9 +164,21 @@ pub fn generate(state: &mut UiState) {
             }
 
             if state.output_vs2026 {
-                state
-                    .log
-                    .push_str("\n-- VS2026 generation not implemented yet --");
+                match write_vs2026_project(
+                    dll_path,
+                    Path::new(state.project_dir.trim()),
+                    &exports_for_write,
+                ) {
+                    Ok(_) => state
+                        .log
+                        .push_str("\n-- VS2026 project written successfully --"),
+                    Err(err) => {
+                        state
+                            .log
+                            .push_str(&format!("\n-- VS2026 project write failed --\n{err}"));
+                        state.success = Some(false);
+                    }
+                }
             }
         }
         Err(err) => {
@@ -363,6 +375,73 @@ fn write_vs2022_project(
     };
 
     write_file(&format!("{}.sln", project_name), &sln)?;
+    write_file(&format!("{}.vcxproj", project_name), &vcxproj)?;
+    write_file(&format!("{}.vcxproj.filters", project_name), &filters)?;
+    write_file(&format!("{}.vcxproj.user", project_name), &user)?;
+    write_file(&format!("{}.c", base_name), &c_src)?;
+    write_file(&format!("{}_jump.asm", base_name), &asm_src)?;
+
+    Ok(written)
+}
+
+fn write_vs2026_project(
+    dll_path: &Path,
+    output_dir: &Path,
+    exports: &[dll::ExportEntry],
+) -> anyhow::Result<Vec<String>> {
+    let dll_stem = dll_path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("Invalid DLL filename"))?;
+    let dll_name = dll_path
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| format!("{dll_stem}.dll"));
+
+    let project_name = format!("AheadLibEx_{}", dll_stem);
+    let base_name = dll_stem;
+
+    let guid_solution = new_guid_braced();
+    let guid_project = new_guid_braced();
+    let guid_source = new_guid_braced();
+    let guid_header = new_guid_braced();
+    let guid_resource = new_guid_braced();
+
+    let guids = VsGuids {
+        solution: &guid_solution,
+        project: &guid_project,
+        filter_source: &guid_source,
+        filter_header: &guid_header,
+        filter_resource: &guid_resource,
+    };
+
+    let ctx = VsTemplateContext {
+        project_name: &project_name,
+        dll_name: &dll_name,
+        base_name: &base_name,
+        exports,
+        guids,
+    };
+
+    let slnx = render_slnx_2026(&ctx);
+    let vcxproj = render_vcxproj_2026(&ctx);
+    let filters = render_filters_2026(&ctx);
+    let user = render_user_2026();
+    let c_src = render_c(&ctx);
+    let asm_src = render_asm(&ctx);
+
+    fs::create_dir_all(output_dir)?;
+
+    let mut written = Vec::new();
+    let mut write_file = |name: &str, content: &str| -> anyhow::Result<()> {
+        let path = output_dir.join(name);
+        fs::write(&path, content)?;
+        written.push(path.display().to_string());
+        Ok(())
+    };
+
+    write_file(&format!("{}.slnx", project_name), &slnx)?;
     write_file(&format!("{}.vcxproj", project_name), &vcxproj)?;
     write_file(&format!("{}.vcxproj.filters", project_name), &filters)?;
     write_file(&format!("{}.vcxproj.user", project_name), &user)?;
