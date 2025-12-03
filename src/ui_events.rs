@@ -2,8 +2,9 @@ use std::{env, path::Path};
 
 use crate::dll;
 use crate::templates::{
-    render_asm, render_c, render_filters, render_filters_2026, render_solution, render_slnx_2026,
-    render_user, render_user_2026, render_vcxproj, render_vcxproj_2026, VsGuids, VsTemplateContext,
+    render_asm_x64, render_c, render_c_x64, render_filters, render_filters_2026, render_solution,
+    render_slnx_2026, render_user, render_user_2026, render_vcxproj, render_vcxproj_2026, VsGuids,
+    VsTemplateContext,
 };
 use eframe::egui;
 use rfd;
@@ -298,8 +299,9 @@ fn write_source_files(
         guids,
     };
 
-    let c_src = render_c(&ctx);
-    let asm_src = render_asm(&ctx);
+    let c_src_x86 = render_c(&ctx);
+    let c_src_x64 = render_c_x64(&ctx);
+    let asm_src_x64 = render_asm_x64(&ctx);
 
     fs::create_dir_all(output_dir)?;
 
@@ -311,8 +313,9 @@ fn write_source_files(
         Ok(())
     };
 
-    write_file(&format!("{}.c", base_name), &c_src)?;
-    write_file(&format!("{}_jump.asm", base_name), &asm_src)?;
+    write_file(&format!("{}_x86.c", base_name), &c_src_x86)?;
+    write_file(&format!("{}_x64.c", base_name), &c_src_x64)?;
+    write_file(&format!("{}_x64_jump.asm", base_name), &asm_src_x64)?;
 
     Ok(written)
 }
@@ -361,8 +364,9 @@ fn write_vs2022_project(
     let vcxproj = render_vcxproj(&ctx);
     let filters = render_filters(&ctx);
     let user = render_user();
-    let c_src = render_c(&ctx);
-    let asm_src = render_asm(&ctx);
+    let c_src_x86 = render_c(&ctx);
+    let c_src_x64 = render_c_x64(&ctx);
+    let asm_src_x64 = render_asm_x64(&ctx);
 
     fs::create_dir_all(output_dir)?;
 
@@ -378,8 +382,9 @@ fn write_vs2022_project(
     write_file(&format!("{}.vcxproj", project_name), &vcxproj)?;
     write_file(&format!("{}.vcxproj.filters", project_name), &filters)?;
     write_file(&format!("{}.vcxproj.user", project_name), &user)?;
-    write_file(&format!("{}.c", base_name), &c_src)?;
-    write_file(&format!("{}_jump.asm", base_name), &asm_src)?;
+    write_file(&format!("{}_x86.c", base_name), &c_src_x86)?;
+    write_file(&format!("{}_x64.c", base_name), &c_src_x64)?;
+    write_file(&format!("{}_x64_jump.asm", base_name), &asm_src_x64)?;
 
     Ok(written)
 }
@@ -428,8 +433,9 @@ fn write_vs2026_project(
     let vcxproj = render_vcxproj_2026(&ctx);
     let filters = render_filters_2026(&ctx);
     let user = render_user_2026();
-    let c_src = render_c(&ctx);
-    let asm_src = render_asm(&ctx);
+    let c_src_x86 = render_c(&ctx);
+    let c_src_x64 = render_c_x64(&ctx);
+    let asm_src_x64 = render_asm_x64(&ctx);
 
     fs::create_dir_all(output_dir)?;
 
@@ -445,8 +451,9 @@ fn write_vs2026_project(
     write_file(&format!("{}.vcxproj", project_name), &vcxproj)?;
     write_file(&format!("{}.vcxproj.filters", project_name), &filters)?;
     write_file(&format!("{}.vcxproj.user", project_name), &user)?;
-    write_file(&format!("{}.c", base_name), &c_src)?;
-    write_file(&format!("{}_jump.asm", base_name), &asm_src)?;
+    write_file(&format!("{}_x86.c", base_name), &c_src_x86)?;
+    write_file(&format!("{}_x64.c", base_name), &c_src_x64)?;
+    write_file(&format!("{}_x64_jump.asm", base_name), &asm_src_x64)?;
 
     Ok(written)
 }

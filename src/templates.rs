@@ -35,8 +35,9 @@ const TPL_SOLUTION: &str = include_str!("../templates/vs2022/vs2022_solution.sln
 const TPL_VCXPROJ: &str = include_str!("../templates/vs2022/vs2022_project.vcxproj.tpl");
 const TPL_FILTERS: &str = include_str!("../templates/vs2022/vs2022_filters.vcxproj.filters.tpl");
 const TPL_USER: &str = include_str!("../templates/vs2022/vs2022_project.vcxproj.user.tpl");
-const TPL_C: &str = include_str!("../templates/common/proxy.c.tpl");
-const TPL_ASM: &str = include_str!("../templates/common/proxy_jump.asm.tpl");
+const TPL_C_X86: &str = include_str!("../templates/common/proxy_x86.c.tpl");
+const TPL_C_X64: &str = include_str!("../templates/common/proxy_x64.c.tpl");
+const TPL_ASM_X64: &str = include_str!("../templates/common/proxy_x64_jump.asm.tpl");
 const TPL_VCXPROJ_2026: &str = include_str!("../templates/vs2026/vs2026_project.vcxproj.tpl");
 const TPL_FILTERS_2026: &str = include_str!("../templates/vs2026/vs2026_project.vcxproj.filters.tpl");
 const TPL_USER_2026: &str = include_str!("../templates/vs2026/vs2026_project.vcxproj.user.tpl");
@@ -184,20 +185,6 @@ pub fn render_c(ctx: &VsTemplateContext) -> String {
     let exports = prepare_exports(ctx.exports);
 
     let mut export_pragmas = String::new();
-    export_pragmas.push_str("#if defined(_WIN64)\n");
-    for exp in &exports {
-        let noname = if exp.label.starts_with("Noname") {
-            ",NONAME"
-        } else {
-            ""
-        };
-        let _ = writeln!(
-            export_pragmas,
-            "#pragma comment(linker, \"/EXPORT:{}=AheadLibEx_{},@{}{}\")",
-            exp.label, exp.stub, exp.ordinal, noname
-        );
-    }
-    export_pragmas.push_str("#else\n");
     for exp in &exports {
         let noname = if exp.label.starts_with("Noname") {
             ",NONAME"
@@ -210,7 +197,6 @@ pub fn render_c(ctx: &VsTemplateContext) -> String {
             exp.label, exp.stub, exp.ordinal, noname
         );
     }
-    export_pragmas.push_str("#endif\n");
 
     let mut forward_decls = String::new();
     for exp in &exports {
@@ -218,15 +204,6 @@ pub fn render_c(ctx: &VsTemplateContext) -> String {
             forward_decls,
             "AHEADLIB_EXTERN PVOID pfnAheadLibEx_{};",
             exp.stub
-        );
-    }
-
-    let mut x86_trampolines = String::new();
-    for exp in &exports {
-        let _ = writeln!(
-            x86_trampolines,
-            "EXTERN_C __declspec(naked) void __cdecl AheadLibEx_{}(void)\n{{\n\t__asm jmp pfnAheadLibEx_{};\n}}\n",
-            exp.stub, exp.stub
         );
     }
 
@@ -248,18 +225,71 @@ pub fn render_c(ctx: &VsTemplateContext) -> String {
     }
 
     fill(
-        TPL_C,
+        TPL_C_X86,
         &[
             ("DLL_NAME", ctx.dll_name.to_string()),
             ("EXPORT_PRAGMAS", export_pragmas),
             ("FORWARD_DECLS", forward_decls),
-            ("X86_TRAMPOLINES", x86_trampolines),
             ("INIT_FORWARDERS", init_forwarders),
         ],
     )
 }
 
-pub fn render_asm(ctx: &VsTemplateContext) -> String {
+pub fn render_c_x64(ctx: &VsTemplateContext) -> String {
+    let exports = prepare_exports(ctx.exports);
+
+    let mut export_pragmas = String::new();
+    for exp in &exports {
+        let noname = if exp.label.starts_with("Noname") {
+            ",NONAME"
+        } else {
+            ""
+        };
+        let _ = writeln!(
+            export_pragmas,
+            "#pragma comment(linker, \"/EXPORT:{}=AheadLibEx_{},@{}{}\")",
+            exp.label, exp.stub, exp.ordinal, noname
+        );
+    }
+
+    let mut forward_decls = String::new();
+    for exp in &exports {
+        let _ = writeln!(
+            forward_decls,
+            "AHEADLIB_EXTERN PVOID pfnAheadLibEx_{};",
+            exp.stub
+        );
+    }
+
+    let mut init_forwarders = String::new();
+    for exp in &exports {
+        if exp.label.starts_with("Noname") {
+            let _ = writeln!(
+                init_forwarders,
+                "\tpfnAheadLibEx_{} = get_address(MAKEINTRESOURCEA({}));",
+                exp.stub, exp.ordinal
+            );
+        } else {
+            let _ = writeln!(
+                init_forwarders,
+                "\tpfnAheadLibEx_{} = get_address(\"{}\");",
+                exp.stub, exp.raw_name
+            );
+        }
+    }
+
+    fill(
+        TPL_C_X64,
+        &[
+            ("DLL_NAME", ctx.dll_name.to_string()),
+            ("EXPORT_PRAGMAS", export_pragmas),
+            ("FORWARD_DECLS", forward_decls),
+            ("INIT_FORWARDERS", init_forwarders),
+        ],
+    )
+}
+
+pub fn render_asm_x64(ctx: &VsTemplateContext) -> String {
     let exports = prepare_exports(ctx.exports);
 
     let mut externs = String::new();
@@ -277,7 +307,7 @@ pub fn render_asm(ctx: &VsTemplateContext) -> String {
     }
 
     fill(
-        TPL_ASM,
+        TPL_ASM_X64,
         &[("ASM_EXTERNS", externs), ("ASM_JUMPS", jumps)],
     )
 }

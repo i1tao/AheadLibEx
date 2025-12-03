@@ -15,12 +15,15 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="{{BASE}}.c">
+    <ClCompile Include="{{BASE}}_x86.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="{{BASE}}_x64.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="{{BASE}}_jump.asm">
+    <MASM Include="{{BASE}}_x64_jump.asm">
       <Filter>Source Files</Filter>
     </MASM>
   </ItemGroup>
