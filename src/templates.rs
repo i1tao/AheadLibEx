@@ -45,9 +45,19 @@ const TPL_SLNX_2026: &str = include_str!("../templates/vs2026/vs2026_solution.sl
 
 fn fill(template: &str, pairs: &[(&str, String)]) -> String {
     let mut out = template.to_string();
-    for (key, val) in pairs {
-        let needle = format!("{{{{{}}}}}", key);
-        out = out.replace(&needle, val);
+    // 支持嵌套占位符，多轮替换直到没有匹配或达到安全上限
+    for _ in 0..5 {
+        let mut changed = false;
+        for (key, val) in pairs {
+            let needle = format!("{{{{{}}}}}", key);
+            if out.contains(&needle) {
+                out = out.replace(&needle, val);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
     }
     out
 }
@@ -106,28 +116,305 @@ fn prepare_exports(entries: &[ExportEntry]) -> Vec<PreparedExport<'_>> {
     prepared
 }
 
-pub fn render_solution(ctx: &VsTemplateContext) -> String {
+fn solution_configs(is_x64: bool, project_guid: &str) -> (String, String) {
+    if is_x64 {
+        (
+            "\t\tDebug|x64 = Debug|x64\n\t\tRelease|x64 = Release|x64\n".to_string(),
+            format!(
+                "\t\t{guid}.Debug|x64.ActiveCfg = Debug|x64\n\t\t{guid}.Debug|x64.Build.0 = Debug|x64\n\t\t{guid}.Release|x64.ActiveCfg = Release|x64\n\t\t{guid}.Release|x64.Build.0 = Release|x64\n",
+                guid = project_guid
+            ),
+        )
+    } else {
+        (
+            "\t\tDebug|x86 = Debug|x86\n\t\tRelease|x86 = Release|x86\n".to_string(),
+            format!(
+                "\t\t{guid}.Debug|x86.ActiveCfg = Debug|Win32\n\t\t{guid}.Debug|x86.Build.0 = Debug|Win32\n\t\t{guid}.Release|x86.ActiveCfg = Release|Win32\n\t\t{guid}.Release|x86.Build.0 = Release|Win32\n",
+                guid = project_guid
+            ),
+        )
+    }
+}
+
+fn project_config_entries(is_x64: bool) -> String {
+    if is_x64 {
+        r#"    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+"#
+        .to_string()
+    } else {
+        r#"    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+"#
+        .to_string()
+    }
+}
+
+fn cl_item_group(base: &str, is_x64: bool) -> String {
+    if is_x64 {
+        format!(
+            r#"  <ItemGroup>
+    <ClCompile Include="{base}_x64.c" />
+  </ItemGroup>
+"#
+        )
+    } else {
+        format!(
+            r#"  <ItemGroup>
+    <ClCompile Include="{base}_x86.c" />
+  </ItemGroup>
+"#
+        )
+    }
+}
+
+fn asm_item_group(base: &str, is_x64: bool) -> String {
+    if is_x64 {
+        format!(
+            r#"  <ItemGroup>
+    <MASM Include="{base}_x64_jump.asm" />
+  </ItemGroup>
+"#
+        )
+    } else {
+        String::new()
+    }
+}
+
+fn config_groups(toolset: &str, is_x64: bool) -> String {
+    if is_x64 {
+        format!(
+            r#"  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>{toolset}</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>{toolset}</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+"#
+        )
+    } else {
+        format!(
+            r#"  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>{toolset}</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>{toolset}</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+"#
+        )
+    }
+}
+
+fn property_sheets(is_x64: bool) -> String {
+    if is_x64 {
+        r#"  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props') " Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props') " Label="LocalAppDataPlatform" />
+  </ImportGroup>
+"#
+        .to_string()
+    } else {
+        r#"  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props') " Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props') " Label="LocalAppDataPlatform" />
+  </ImportGroup>
+"#
+        .to_string()
+    }
+}
+
+fn item_definitions(is_x64: bool) -> String {
+    if is_x64 {
+        r#"  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;DLLTEST_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;DLLTEST_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+    </Link>
+  </ItemDefinitionGroup>
+"#
+        .to_string()
+    } else {
+        r#"  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;DLLTEST_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;DLLTEST_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+    </Link>
+  </ItemDefinitionGroup>
+"#
+        .to_string()
+    }
+}
+
+fn extension_settings(is_x64: bool) -> String {
+    if is_x64 {
+        "    <Import Project=\"$(VCTargetsPath)\\BuildCustomizations\\masm.props\" />\n".to_string()
+    } else {
+        String::new()
+    }
+}
+
+fn extension_targets(is_x64: bool) -> String {
+    if is_x64 {
+        "    <Import Project=\"$(VCTargetsPath)\\BuildCustomizations\\masm.targets\" />\n".to_string()
+    } else {
+        String::new()
+    }
+}
+
+fn filter_itemgroups(base: &str, is_x64: bool) -> String {
+    if is_x64 {
+        format!(
+            r#"  <ItemGroup>
+    <ClCompile Include="{base}_x64.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="{base}_x64_jump.asm">
+      <Filter>Source Files</Filter>
+    </MASM>
+  </ItemGroup>
+"#
+        )
+    } else {
+        format!(
+            r#"  <ItemGroup>
+    <ClCompile Include="{base}_x86.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+"#
+        )
+    }
+}
+
+fn slnx_platforms(is_x64: bool) -> String {
+    if is_x64 {
+        "    <Platform Name=\"x64\" />\n".to_string()
+    } else {
+        "    <Platform Name=\"x86\" />\n".to_string()
+    }
+}
+
+pub fn render_solution(ctx: &VsTemplateContext, is_x64: bool) -> String {
+    let (solution_configs, project_configs) = solution_configs(is_x64, ctx.guids.project);
     fill(
         TPL_SOLUTION,
         &[
             ("PROJECT_NAME", ctx.project_name.to_string()),
             ("PROJECT_GUID", ctx.guids.project.to_string()),
             ("SOLUTION_GUID", ctx.guids.solution.to_string()),
+            ("SOLUTION_CONFIGS", solution_configs),
+            ("PROJECT_CONFIGS", project_configs),
         ],
     )
 }
 
-pub fn render_vcxproj(ctx: &VsTemplateContext) -> String {
+pub fn render_vcxproj(ctx: &VsTemplateContext, is_x64: bool) -> String {
     fill(
         TPL_VCXPROJ,
         &[
             ("BASE", ctx.base_name.to_string()),
             ("PROJECT_GUID", ctx.guids.project.to_string()),
+            ("PROJECT_CONFIGS", project_config_entries(is_x64)),
+            ("CL_ITEM_GROUP", cl_item_group(ctx.base_name, is_x64)),
+            ("ASM_ITEM_GROUP", asm_item_group(ctx.base_name, is_x64)),
+            ("CONFIG_GROUPS", config_groups("v143", is_x64)),
+            ("PROPERTY_SHEETS", property_sheets(is_x64)),
+            ("ITEM_DEFINITIONS", item_definitions(is_x64)),
+            ("EXTENSION_SETTINGS", extension_settings(is_x64)),
+            ("EXTENSION_TARGETS", extension_targets(is_x64)),
         ],
     )
 }
 
-pub fn render_vcxproj_2026(ctx: &VsTemplateContext) -> String {
+pub fn render_vcxproj_2026(ctx: &VsTemplateContext, is_x64: bool) -> String {
     fill(
         TPL_VCXPROJ_2026,
         &[
@@ -138,11 +425,19 @@ pub fn render_vcxproj_2026(ctx: &VsTemplateContext) -> String {
             ),
             ("PROJECT_GUID", ctx.guids.project.to_string()),
             ("BASE", ctx.base_name.to_string()),
+            ("PROJECT_CONFIGS", project_config_entries(is_x64)),
+            ("CL_ITEM_GROUP", cl_item_group(ctx.base_name, is_x64)),
+            ("ASM_ITEM_GROUP", asm_item_group(ctx.base_name, is_x64)),
+            ("CONFIG_GROUPS", config_groups("v145", is_x64)),
+            ("PROPERTY_SHEETS", property_sheets(is_x64)),
+            ("ITEM_DEFINITIONS", item_definitions(is_x64)),
+            ("EXTENSION_SETTINGS", extension_settings(is_x64)),
+            ("EXTENSION_TARGETS", extension_targets(is_x64)),
         ],
     )
 }
 
-pub fn render_filters(ctx: &VsTemplateContext) -> String {
+pub fn render_filters(ctx: &VsTemplateContext, is_x64: bool) -> String {
     fill(
         TPL_FILTERS,
         &[
@@ -150,11 +445,12 @@ pub fn render_filters(ctx: &VsTemplateContext) -> String {
             ("GUID_SOURCE", ctx.guids.filter_source.to_string()),
             ("GUID_HEADER", ctx.guids.filter_header.to_string()),
             ("GUID_RESOURCE", ctx.guids.filter_resource.to_string()),
+            ("FILTER_ITEMGROUPS", filter_itemgroups(ctx.base_name, is_x64)),
         ],
     )
 }
 
-pub fn render_filters_2026(ctx: &VsTemplateContext) -> String {
+pub fn render_filters_2026(ctx: &VsTemplateContext, is_x64: bool) -> String {
     fill(
         TPL_FILTERS_2026,
         &[
@@ -162,6 +458,7 @@ pub fn render_filters_2026(ctx: &VsTemplateContext) -> String {
             ("GUID_SOURCE", ctx.guids.filter_source.to_string()),
             ("GUID_HEADER", ctx.guids.filter_header.to_string()),
             ("GUID_RESOURCE", ctx.guids.filter_resource.to_string()),
+            ("FILTER_ITEMGROUPS", filter_itemgroups(ctx.base_name, is_x64)),
         ],
     )
 }
@@ -174,10 +471,13 @@ pub fn render_user_2026() -> String {
     TPL_USER_2026.to_string()
 }
 
-pub fn render_slnx_2026(ctx: &VsTemplateContext) -> String {
+pub fn render_slnx_2026(ctx: &VsTemplateContext, is_x64: bool) -> String {
     fill(
         TPL_SLNX_2026,
-        &[("PROJECT_NAME", ctx.project_name.to_string())],
+        &[
+            ("PROJECT_NAME", ctx.project_name.to_string()),
+            ("PLATFORMS", slnx_platforms(is_x64)),
+        ],
     )
 }
 
@@ -207,6 +507,15 @@ pub fn render_c(ctx: &VsTemplateContext) -> String {
         );
     }
 
+    let mut trampolines = String::new();
+    for exp in &exports {
+        let _ = writeln!(
+            trampolines,
+            "__declspec(naked) AHEADLIB_EXTERN void AheadLibEx_{name}(void) {{ __asm {{ jmp dword ptr [pfnAheadLibEx_{name}] }} }}",
+            name = exp.stub
+        );
+    }
+
     let mut init_forwarders = String::new();
     for exp in &exports {
         if exp.label.starts_with("Noname") {
@@ -231,6 +540,7 @@ pub fn render_c(ctx: &VsTemplateContext) -> String {
             ("EXPORT_PRAGMAS", export_pragmas),
             ("FORWARD_DECLS", forward_decls),
             ("INIT_FORWARDERS", init_forwarders),
+            ("X86_TRAMPOLINES", trampolines),
         ],
     )
 }

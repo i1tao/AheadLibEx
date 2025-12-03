@@ -104,6 +104,7 @@ pub fn generate(state: &mut UiState) {
         Ok(info) => {
             let mut exports = info.exports.clone();
             exports.sort_by_key(|e| e.ordinal);
+            let is_x64 = info.arch.eq_ignore_ascii_case("x64");
 
             let mut out = String::with_capacity(state.log.len().max(256));
             use std::fmt::Write;
@@ -135,6 +136,7 @@ pub fn generate(state: &mut UiState) {
                 match write_source_files(
                     dll_path,
                     Path::new(state.project_dir.trim()),
+                    is_x64,
                     &exports_for_write,
                 ) {
                     Ok(_) => state.log.push_str("\n-- Source files written successfully --"),
@@ -150,6 +152,7 @@ pub fn generate(state: &mut UiState) {
                 match write_vs2022_project(
                     dll_path,
                     Path::new(state.project_dir.trim()),
+                    is_x64,
                     &exports_for_write,
                 ) {
                     Ok(_) => state
@@ -168,6 +171,7 @@ pub fn generate(state: &mut UiState) {
                 match write_vs2026_project(
                     dll_path,
                     Path::new(state.project_dir.trim()),
+                    is_x64,
                     &exports_for_write,
                 ) {
                     Ok(_) => state
@@ -263,6 +267,7 @@ fn selected_targets(state: &UiState) -> Vec<String> {
 fn write_source_files(
     dll_path: &Path,
     output_dir: &Path,
+    is_x64: bool,
     exports: &[dll::ExportEntry],
 ) -> anyhow::Result<Vec<String>> {
     let dll_stem = dll_path
@@ -299,9 +304,17 @@ fn write_source_files(
         guids,
     };
 
-    let c_src_x86 = render_c(&ctx);
-    let c_src_x64 = render_c_x64(&ctx);
-    let asm_src_x64 = render_asm_x64(&ctx);
+    let c_src_x86 = if is_x64 { None } else { Some(render_c(&ctx)) };
+    let c_src_x64 = if is_x64 {
+        Some(render_c_x64(&ctx))
+    } else {
+        None
+    };
+    let asm_src_x64 = if is_x64 {
+        Some(render_asm_x64(&ctx))
+    } else {
+        None
+    };
 
     fs::create_dir_all(output_dir)?;
 
@@ -313,9 +326,15 @@ fn write_source_files(
         Ok(())
     };
 
-    write_file(&format!("{}_x86.c", base_name), &c_src_x86)?;
-    write_file(&format!("{}_x64.c", base_name), &c_src_x64)?;
-    write_file(&format!("{}_x64_jump.asm", base_name), &asm_src_x64)?;
+    if let Some(content) = c_src_x86 {
+        write_file(&format!("{}_x86.c", base_name), &content)?;
+    }
+    if let Some(content) = c_src_x64 {
+        write_file(&format!("{}_x64.c", base_name), &content)?;
+    }
+    if let Some(content) = asm_src_x64 {
+        write_file(&format!("{}_x64_jump.asm", base_name), &content)?;
+    }
 
     Ok(written)
 }
@@ -323,6 +342,7 @@ fn write_source_files(
 fn write_vs2022_project(
     dll_path: &Path,
     output_dir: &Path,
+    is_x64: bool,
     exports: &[dll::ExportEntry],
 ) -> anyhow::Result<Vec<String>> {
     let dll_stem = dll_path
@@ -360,13 +380,21 @@ fn write_vs2022_project(
         guids,
     };
 
-    let sln = render_solution(&ctx);
-    let vcxproj = render_vcxproj(&ctx);
-    let filters = render_filters(&ctx);
+    let sln = render_solution(&ctx, is_x64);
+    let vcxproj = render_vcxproj(&ctx, is_x64);
+    let filters = render_filters(&ctx, is_x64);
     let user = render_user();
-    let c_src_x86 = render_c(&ctx);
-    let c_src_x64 = render_c_x64(&ctx);
-    let asm_src_x64 = render_asm_x64(&ctx);
+    let c_src_x86 = if is_x64 { None } else { Some(render_c(&ctx)) };
+    let c_src_x64 = if is_x64 {
+        Some(render_c_x64(&ctx))
+    } else {
+        None
+    };
+    let asm_src_x64 = if is_x64 {
+        Some(render_asm_x64(&ctx))
+    } else {
+        None
+    };
 
     fs::create_dir_all(output_dir)?;
 
@@ -382,9 +410,15 @@ fn write_vs2022_project(
     write_file(&format!("{}.vcxproj", project_name), &vcxproj)?;
     write_file(&format!("{}.vcxproj.filters", project_name), &filters)?;
     write_file(&format!("{}.vcxproj.user", project_name), &user)?;
-    write_file(&format!("{}_x86.c", base_name), &c_src_x86)?;
-    write_file(&format!("{}_x64.c", base_name), &c_src_x64)?;
-    write_file(&format!("{}_x64_jump.asm", base_name), &asm_src_x64)?;
+    if let Some(content) = c_src_x86 {
+        write_file(&format!("{}_x86.c", base_name), &content)?;
+    }
+    if let Some(content) = c_src_x64 {
+        write_file(&format!("{}_x64.c", base_name), &content)?;
+    }
+    if let Some(content) = asm_src_x64 {
+        write_file(&format!("{}_x64_jump.asm", base_name), &content)?;
+    }
 
     Ok(written)
 }
@@ -392,6 +426,7 @@ fn write_vs2022_project(
 fn write_vs2026_project(
     dll_path: &Path,
     output_dir: &Path,
+    is_x64: bool,
     exports: &[dll::ExportEntry],
 ) -> anyhow::Result<Vec<String>> {
     let dll_stem = dll_path
@@ -429,13 +464,21 @@ fn write_vs2026_project(
         guids,
     };
 
-    let slnx = render_slnx_2026(&ctx);
-    let vcxproj = render_vcxproj_2026(&ctx);
-    let filters = render_filters_2026(&ctx);
+    let slnx = render_slnx_2026(&ctx, is_x64);
+    let vcxproj = render_vcxproj_2026(&ctx, is_x64);
+    let filters = render_filters_2026(&ctx, is_x64);
     let user = render_user_2026();
-    let c_src_x86 = render_c(&ctx);
-    let c_src_x64 = render_c_x64(&ctx);
-    let asm_src_x64 = render_asm_x64(&ctx);
+    let c_src_x86 = if is_x64 { None } else { Some(render_c(&ctx)) };
+    let c_src_x64 = if is_x64 {
+        Some(render_c_x64(&ctx))
+    } else {
+        None
+    };
+    let asm_src_x64 = if is_x64 {
+        Some(render_asm_x64(&ctx))
+    } else {
+        None
+    };
 
     fs::create_dir_all(output_dir)?;
 
@@ -451,9 +494,15 @@ fn write_vs2026_project(
     write_file(&format!("{}.vcxproj", project_name), &vcxproj)?;
     write_file(&format!("{}.vcxproj.filters", project_name), &filters)?;
     write_file(&format!("{}.vcxproj.user", project_name), &user)?;
-    write_file(&format!("{}_x86.c", base_name), &c_src_x86)?;
-    write_file(&format!("{}_x64.c", base_name), &c_src_x64)?;
-    write_file(&format!("{}_x64_jump.asm", base_name), &asm_src_x64)?;
+    if let Some(content) = c_src_x86 {
+        write_file(&format!("{}_x86.c", base_name), &content)?;
+    }
+    if let Some(content) = c_src_x64 {
+        write_file(&format!("{}_x64.c", base_name), &content)?;
+    }
+    if let Some(content) = asm_src_x64 {
+        write_file(&format!("{}_x64_jump.asm", base_name), &content)?;
+    }
 
     Ok(written)
 }
