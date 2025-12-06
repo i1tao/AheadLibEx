@@ -14,6 +14,13 @@ use uuid::Uuid;
 const DEFAULT_LOG: &str =
     "AheadLibEx (Rust)\nAuthor: i1tao\nGitHub: https://github.com/i1tao/AheadLibEx\n------------------------------------------------------";
 
+#[derive(Copy, Clone, Debug)]
+pub enum OutputTarget {
+    Source,
+    Vs2022,
+    Vs2026,
+}
+
 pub struct UiState {
     pub dll_path: String,
     pub project_dir: String,
@@ -193,6 +200,27 @@ pub fn generate(state: &mut UiState) {
     }
 }
 
+pub fn generate_cli(
+    target: OutputTarget,
+    dll_path: &Path,
+    output_dir: &Path,
+) -> anyhow::Result<Vec<String>> {
+    if !dll_path.exists() {
+        return Err(anyhow::anyhow!("DLL path not found: {}", dll_path.display()));
+    }
+
+    let info = dll::read_exports(dll_path)?;
+    let mut exports = info.exports.clone();
+    exports.sort_by_key(|e| e.ordinal);
+    let is_x64 = info.arch.eq_ignore_ascii_case("x64");
+
+    match target {
+        OutputTarget::Source => write_source_files(dll_path, output_dir, is_x64, &exports),
+        OutputTarget::Vs2022 => write_vs2022_project(dll_path, output_dir, is_x64, &exports),
+        OutputTarget::Vs2026 => write_vs2026_project(dll_path, output_dir, is_x64, &exports),
+    }
+}
+
 pub fn reset(state: &mut UiState) {
     state.dll_path.clear();
     state.project_dir.clear();
@@ -355,8 +383,9 @@ fn write_vs2022_project(
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or_else(|| format!("{dll_stem}.dll"));
 
-    let project_name = format!("AheadLibEx_{}", dll_stem);
-    let base_name = dll_stem;
+    let solution_name = format!("AheadlibEx_{}", dll_stem);
+    let project_name = dll_stem;
+    let base_name = project_name.clone();
 
     let guid_solution = new_guid_braced();
     let guid_project = new_guid_braced();
@@ -406,7 +435,7 @@ fn write_vs2022_project(
         Ok(())
     };
 
-    write_file(&format!("{}.sln", project_name), &sln)?;
+    write_file(&format!("{}.sln", solution_name), &sln)?;
     write_file(&format!("{}.vcxproj", project_name), &vcxproj)?;
     write_file(&format!("{}.vcxproj.filters", project_name), &filters)?;
     write_file(&format!("{}.vcxproj.user", project_name), &user)?;
@@ -439,8 +468,9 @@ fn write_vs2026_project(
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or_else(|| format!("{dll_stem}.dll"));
 
-    let project_name = format!("AheadLibEx_{}", dll_stem);
-    let base_name = dll_stem;
+    let solution_name = format!("AheadlibEx_{}", dll_stem);
+    let project_name = dll_stem;
+    let base_name = project_name.clone();
 
     let guid_solution = new_guid_braced();
     let guid_project = new_guid_braced();
@@ -490,7 +520,7 @@ fn write_vs2026_project(
         Ok(())
     };
 
-    write_file(&format!("{}.slnx", project_name), &slnx)?;
+    write_file(&format!("{}.slnx", solution_name), &slnx)?;
     write_file(&format!("{}.vcxproj", project_name), &vcxproj)?;
     write_file(&format!("{}.vcxproj.filters", project_name), &filters)?;
     write_file(&format!("{}.vcxproj.user", project_name), &user)?;

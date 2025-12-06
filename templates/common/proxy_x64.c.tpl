@@ -23,50 +23,50 @@ static HMODULE g_origin_module_handle;
 
 static VOID WINAPI free_origin_module(void)
 {
-	if (g_origin_module_handle)
-	{
-		FreeLibrary(g_origin_module_handle);
-		g_origin_module_handle = NULL;
-	}
+    if (g_origin_module_handle)
+    {
+        FreeLibrary(g_origin_module_handle);
+        g_origin_module_handle = NULL;
+    }
 }
 
 static BOOL WINAPI load_original_module(void)
 {
-	TCHAR module_path[MAX_PATH] = { 0 };
-	TCHAR message[MAX_PATH] = { 0 };
+    TCHAR module_path[MAX_PATH] = { 0 };
+    TCHAR message[MAX_PATH] = { 0 };
 
-	GetSystemDirectory(module_path, MAX_PATH);
-	lstrcat(module_path, TEXT("\\"));
-	lstrcat(module_path, TEXT("{{DLL_NAME}}"));
+    GetSystemDirectory(module_path, MAX_PATH);
+    lstrcat(module_path, TEXT("\\"));
+    lstrcat(module_path, TEXT("{{DLL_NAME}}"));
 
-	g_origin_module_handle = LoadLibrary(module_path);
-	if (!g_origin_module_handle)
-	{
-		wsprintf(message, TEXT("Cannot locate %s, AheadLibEx cannot continue.\nerror code:0x%08X"), module_path, GetLastError());
-		MessageBox(NULL, message, TEXT("AheadLibEx"), MB_ICONSTOP);
-	}
+    g_origin_module_handle = LoadLibrary(module_path);
+    if (!g_origin_module_handle)
+    {
+        wsprintf(message, TEXT("Cannot locate %s, AheadLibEx cannot continue.\nerror code:0x%08X"), module_path, GetLastError());
+        MessageBox(NULL, message, TEXT("AheadLibEx"), MB_ICONSTOP);
+    }
 
-	return g_origin_module_handle != NULL;
+    return g_origin_module_handle != NULL;
 }
 
 static FARPROC WINAPI get_address(PCSTR proc_name)
 {
-	CHAR ordinal_name[64];
-	TCHAR message[MAX_PATH];
-	FARPROC address = GetProcAddress(g_origin_module_handle, proc_name);
-	if (!address)
-	{
-		if (HIWORD(proc_name) == 0)
-		{
-			wsprintfA(ordinal_name, "#%d", proc_name);
-			proc_name = ordinal_name;
-		}
-		wsprintf(message, TEXT("Cannot locate export %hs."), proc_name);
-		MessageBox(NULL, message, TEXT("AheadLibEx"), MB_ICONSTOP);
+    CHAR ordinal_name[64];
+    TCHAR message[MAX_PATH];
+    FARPROC address = GetProcAddress(g_origin_module_handle, proc_name);
+    if (!address)
+    {
+        if (HIWORD(proc_name) == 0)
+        {
+            wsprintfA(ordinal_name, "#%d", proc_name);
+            proc_name = ordinal_name;
+        }
+        wsprintf(message, TEXT("Cannot locate export %hs."), proc_name);
+        MessageBox(NULL, message, TEXT("AheadLibEx"), MB_ICONSTOP);
 
-		ExitProcess(0);
-	}
-	return address;
+        ExitProcess(0);
+    }
+    return address;
 }
 
 static VOID WINAPI init_forwarders(void)
@@ -76,34 +76,34 @@ static VOID WINAPI init_forwarders(void)
 
 DWORD WINAPI patch_thread_proc(LPVOID context)
 {
-	UNREFERENCED_PARAMETER(context);
-	// TODO: Put custom patch logic here when the target process matches.
-	MessageBox(NULL, TEXT("AheadLibExTest!"), TEXT("AheadLibEx"), MB_OK);
-	return 0;
+    UNREFERENCED_PARAMETER(context);
+    // TODO: Put custom patch logic here when the target process matches.
+    MessageBox(NULL, TEXT("AheadLibExTest!"), TEXT("AheadLibEx"), MB_OK);
+    return 0;
 }
 
 BOOL APIENTRY DllMain(HMODULE module, DWORD reason, PVOID reserved)
 {
-	UNREFERENCED_PARAMETER(reserved);
-	if (reason == DLL_PROCESS_ATTACH)
-	{
-		DisableThreadLibraryCalls(module);
-		if (!load_original_module())
-		{
-			return FALSE;
-		}
-		init_forwarders();
+    UNREFERENCED_PARAMETER(reserved);
+    if (reason == DLL_PROCESS_ATTACH)
+    {
+        DisableThreadLibraryCalls(module);
+        if (!load_original_module())
+        {
+            return FALSE;
+        }
+        init_forwarders();
 
-		// TODO: your patch process begins here.
-		HANDLE thread = CreateThread(NULL, 0, patch_thread_proc, NULL, 0, NULL);
-		if (thread)
-		{
-			CloseHandle(thread);
-		}
-	}
-	else if (reason == DLL_PROCESS_DETACH)
-	{
-		free_origin_module();
-	}
-	return TRUE;
+        // TODO: your patch process begins here.
+        HANDLE thread = CreateThread(NULL, 0, patch_thread_proc, NULL, 0, NULL);
+        if (thread)
+        {
+            CloseHandle(thread);
+        }
+    }
+    else if (reason == DLL_PROCESS_DETACH)
+    {
+        free_origin_module();
+    }
+    return TRUE;
 }

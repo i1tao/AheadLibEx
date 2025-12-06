@@ -119,17 +119,17 @@ fn prepare_exports(entries: &[ExportEntry]) -> Vec<PreparedExport<'_>> {
 fn solution_configs(is_x64: bool, project_guid: &str) -> (String, String) {
     if is_x64 {
         (
-            "\t\tDebug|x64 = Debug|x64\n\t\tRelease|x64 = Release|x64\n".to_string(),
+            "        Debug|x64 = Debug|x64\n        Release|x64 = Release|x64\n".to_string(),
             format!(
-                "\t\t{guid}.Debug|x64.ActiveCfg = Debug|x64\n\t\t{guid}.Debug|x64.Build.0 = Debug|x64\n\t\t{guid}.Release|x64.ActiveCfg = Release|x64\n\t\t{guid}.Release|x64.Build.0 = Release|x64\n",
+                "        {guid}.Debug|x64.ActiveCfg = Debug|x64\n        {guid}.Debug|x64.Build.0 = Debug|x64\n        {guid}.Release|x64.ActiveCfg = Release|x64\n        {guid}.Release|x64.Build.0 = Release|x64\n",
                 guid = project_guid
             ),
         )
     } else {
         (
-            "\t\tDebug|x86 = Debug|x86\n\t\tRelease|x86 = Release|x86\n".to_string(),
+            "        Debug|x86 = Debug|x86\n        Release|x86 = Release|x86\n".to_string(),
             format!(
-                "\t\t{guid}.Debug|x86.ActiveCfg = Debug|Win32\n\t\t{guid}.Debug|x86.Build.0 = Debug|Win32\n\t\t{guid}.Release|x86.ActiveCfg = Release|Win32\n\t\t{guid}.Release|x86.Build.0 = Release|Win32\n",
+                "        {guid}.Debug|x86.ActiveCfg = Debug|Win32\n        {guid}.Debug|x86.Build.0 = Debug|Win32\n        {guid}.Release|x86.ActiveCfg = Release|Win32\n        {guid}.Release|x86.Build.0 = Release|Win32\n",
                 guid = project_guid
             ),
         )
@@ -537,13 +537,13 @@ pub fn render_c(ctx: &VsTemplateContext) -> String {
         if exp.label.starts_with("Noname") {
             let _ = writeln!(
                 init_forwarders,
-                "\tpfnAheadLibEx_{} = get_address(MAKEINTRESOURCEA({}));",
+                "    pfnAheadLibEx_{} = get_address(MAKEINTRESOURCEA({}));",
                 exp.stub, exp.ordinal
             );
         } else {
             let _ = writeln!(
                 init_forwarders,
-                "\tpfnAheadLibEx_{} = get_address(\"{}\");",
+                "    pfnAheadLibEx_{} = get_address(\"{}\");",
                 exp.stub, exp.raw_name
             );
         }
@@ -592,13 +592,13 @@ pub fn render_c_x64(ctx: &VsTemplateContext) -> String {
         if exp.label.starts_with("Noname") {
             let _ = writeln!(
                 init_forwarders,
-                "\tpfnAheadLibEx_{} = get_address(MAKEINTRESOURCEA({}));",
+                "    pfnAheadLibEx_{} = get_address(MAKEINTRESOURCEA({}));",
                 exp.stub, exp.ordinal
             );
         } else {
             let _ = writeln!(
                 init_forwarders,
-                "\tpfnAheadLibEx_{} = get_address(\"{}\");",
+                "    pfnAheadLibEx_{} = get_address(\"{}\");",
                 exp.stub, exp.raw_name
             );
         }
@@ -627,7 +627,7 @@ pub fn render_asm_x64(ctx: &VsTemplateContext) -> String {
     for exp in &exports {
         let _ = writeln!(
             jumps,
-            "AheadLibEx_{name} PROC\n\tjmp pfnAheadLibEx_{name}\nAheadLibEx_{name} ENDP\n",
+            "AheadLibEx_{name} PROC\n    jmp pfnAheadLibEx_{name}\nAheadLibEx_{name} ENDP\n",
             name = exp.stub
         );
     }
