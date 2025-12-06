@@ -9,16 +9,16 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "{{PROJECT_NAME}}", "{{PROJECT_NAME}}.vcxproj", "{{PROJECT_GUID}}"
 EndProject
 Global
-	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
 {{SOLUTION_CONFIGS}}
-	EndGlobalSection
-	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
 {{PROJECT_CONFIGS}}
-	EndGlobalSection
- 	GlobalSection(SolutionProperties) = preSolution
- 		HideSolutionNode = FALSE 
-	EndGlobalSection 
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {{SOLUTION_GUID}}
-	EndGlobalSection
+    EndGlobalSection
+     GlobalSection(SolutionProperties) = preSolution
+         HideSolutionNode = FALSE 
+    EndGlobalSection 
+    GlobalSection(ExtensibilityGlobals) = postSolution
+        SolutionGuid = {{SOLUTION_GUID}}
+    EndGlobalSection
 EndGlobal

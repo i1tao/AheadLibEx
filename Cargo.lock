@@ -47,6 +47,7 @@ dependencies = [
  "memmap2",
  "rfd",
  "uuid",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

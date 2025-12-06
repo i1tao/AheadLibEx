@@ -16,6 +16,7 @@ Rust rewrite this project. It inspects a DLL’s export table and generates the 
 - **2025-12-03 (Part 1)**: Added VS2026 templates (slnx/vcxproj/filters/user) alongside shared C/ASM templates; GUI supports generating VS2026 projects;
 - **2025-12-03 (Part 2)**: Generation now follows DLL architecture: x86 only emits proxy C; x64 emits C + jump ASM; VS2022/VS2026 templates trim configs/files per arch, filters/platforms adjust, nested placeholders resolve correctly, and x86 trampolines use `AHEADLIB_EXTERN` for C++ builds.
 - **2025-12-04**: Exports macro now derives from the project name (sanitized upper-case with `_EXPORTS` suffix), replacing the hardcoded `DLLTEST_EXPORTS`; both VS2022/VS2026 vcxproj templates inject the project-specific macro for x86/x64 builds.
+- **2025-12-07**: CLI polished (`aheadlibex-rs.exe <source|vs2022|vs2026> <dll_path> <output_dir>` with `--help`), GUI auto-detaches console on launch, templates normalized to four-space indents, and VS naming updated: solution `AheadlibEx_<DLL name>`, project uses the DLL name, outputs follow the new naming.
 
 
 ## Credits
