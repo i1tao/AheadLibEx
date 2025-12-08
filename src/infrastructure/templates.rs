@@ -31,17 +31,50 @@ struct PreparedExport<'a> {
     stub: String,
 }
 
-const TPL_SOLUTION: &str = include_str!("../templates/vs2022/vs2022_solution.sln.tpl");
-const TPL_VCXPROJ: &str = include_str!("../templates/vs2022/vs2022_project.vcxproj.tpl");
-const TPL_FILTERS: &str = include_str!("../templates/vs2022/vs2022_filters.vcxproj.filters.tpl");
-const TPL_USER: &str = include_str!("../templates/vs2022/vs2022_project.vcxproj.user.tpl");
-const TPL_C_X86: &str = include_str!("../templates/common/proxy_x86.c.tpl");
-const TPL_C_X64: &str = include_str!("../templates/common/proxy_x64.c.tpl");
-const TPL_ASM_X64: &str = include_str!("../templates/common/proxy_x64_jump.asm.tpl");
-const TPL_VCXPROJ_2026: &str = include_str!("../templates/vs2026/vs2026_project.vcxproj.tpl");
-const TPL_FILTERS_2026: &str = include_str!("../templates/vs2026/vs2026_project.vcxproj.filters.tpl");
-const TPL_USER_2026: &str = include_str!("../templates/vs2026/vs2026_project.vcxproj.user.tpl");
-const TPL_SLNX_2026: &str = include_str!("../templates/vs2026/vs2026_solution.slnx.tpl");
+const TPL_SOLUTION: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/vs2022/vs2022_solution.sln.tpl"
+));
+const TPL_VCXPROJ: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/vs2022/vs2022_project.vcxproj.tpl"
+));
+const TPL_FILTERS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/vs2022/vs2022_filters.vcxproj.filters.tpl"
+));
+const TPL_USER: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/vs2022/vs2022_project.vcxproj.user.tpl"
+));
+const TPL_C_X86: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/common/proxy_x86.c.tpl"
+));
+const TPL_C_X64: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/common/proxy_x64.c.tpl"
+));
+const TPL_ASM_X64: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/common/proxy_x64_jump.asm.tpl"
+));
+const TPL_VCXPROJ_2026: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/vs2026/vs2026_project.vcxproj.tpl"
+));
+const TPL_FILTERS_2026: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/vs2026/vs2026_project.vcxproj.filters.tpl"
+));
+const TPL_USER_2026: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/vs2026/vs2026_project.vcxproj.user.tpl"
+));
+const TPL_SLNX_2026: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/vs2026/vs2026_solution.slnx.tpl"
+));
 
 fn fill(template: &str, pairs: &[(&str, String)]) -> String {
     let mut out = template.to_string();
@@ -507,11 +540,8 @@ pub fn render_c(ctx: &VsTemplateContext) -> String {
         } else {
             ""
         };
-        let _ = writeln!(
-            export_pragmas,
-            "#pragma comment(linker, \"/EXPORT:{}=_AheadLibEx_{},@{}{}\")",
-            exp.label, exp.stub, exp.ordinal, noname
-        );
+        let entry = format!("\"{}=_AheadLibEx_{},@{}{}\"", exp.label, exp.stub, exp.ordinal, noname);
+        let _ = writeln!(export_pragmas, "#pragma comment(linker, \"/EXPORT:{}\")", entry);
     }
 
     let mut forward_decls = String::new();
@@ -571,11 +601,8 @@ pub fn render_c_x64(ctx: &VsTemplateContext) -> String {
         } else {
             ""
         };
-        let _ = writeln!(
-            export_pragmas,
-            "#pragma comment(linker, \"/EXPORT:{}=AheadLibEx_{},@{}{}\")",
-            exp.label, exp.stub, exp.ordinal, noname
-        );
+        let entry = format!("\"{}=AheadLibEx_{},@{}{}\"", exp.label, exp.stub, exp.ordinal, noname);
+        let _ = writeln!(export_pragmas, "#pragma comment(linker, \"/EXPORT:{}\")", entry);
     }
 
     let mut forward_decls = String::new();

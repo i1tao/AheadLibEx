@@ -120,7 +120,7 @@ impl eframe::App for App {
                             .color(colors::TEXT_PRIMARY),
                     );
                     ui.label(
-                        RichText::new("v2.0")
+                        RichText::new("v0.2.1")
                             .size(12.0)
                             .color(colors::TEXT_SECONDARY),
                     );
