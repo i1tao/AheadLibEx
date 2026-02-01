@@ -48,10 +48,12 @@ fn decorated_names_are_preserved_in_exports() {
     let ctx = dummy_ctx(&exports);
 
     let c_x86 = render_c(&ctx);
-    assert!(c_x86.contains(r#"/EXPORT:\"?Func@@YAXH@Z=_AheadLibEx__Func__YAXH_Z,@1\""#));
-    assert!(c_x86.contains(r#"/EXPORT:\"@Func@8=_AheadLibEx__Func_8,@2\""#));
-    assert!(c_x86.contains(r#"/EXPORT:\"??0Class@@QAE@XZ=_AheadLibEx___0Class__QAE_XZ,@3\""#));
-    assert!(c_x86.contains(r#"/EXPORT:\"Noname345=_AheadLibEx_Unnamed345,@345,NONAME\""#));
+    assert!(c_x86.contains(r#"/EXPORT:\"?Func@@YAXH@Z=AheadLibEx__Func__YAXH_Z,@1\""#));
+    assert!(c_x86.contains(r#"/EXPORT:\"@Func@8=AheadLibEx__Func_8,@2\""#));
+    assert!(c_x86.contains(r#"/EXPORT:\"??0Class@@QAE@XZ=AheadLibEx___0Class__QAE_XZ,@3\""#));
+    assert!(c_x86.contains(r#"/EXPORT:\"Noname345=AheadLibEx_Unnamed345,@345,NONAME\""#));
+    assert!(c_x86.contains(r#"/alternatename:AheadLibEx__Func__YAXH_Z=_AheadLibEx__Func__YAXH_Z"#));
+    assert!(c_x86.contains(r#"void __cdecl AheadLibEx__Func__YAXH_Z(void)"#));
 
     let c_x64 = render_c_x64(&ctx);
     assert!(c_x64.contains(r#"/EXPORT:\"?Func@@YAXH@Z=AheadLibEx__Func__YAXH_Z,@1\""#));

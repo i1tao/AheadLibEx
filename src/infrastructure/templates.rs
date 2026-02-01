@@ -540,11 +540,17 @@ pub fn render_c(ctx: &VsTemplateContext) -> String {
         } else {
             ""
         };
-        let entry = format!("{}=_AheadLibEx_{},@{}{}", exp.label, exp.stub, exp.ordinal, noname);
+        let entry = format!("{}=AheadLibEx_{},@{}{}", exp.label, exp.stub, exp.ordinal, noname);
         let _ = writeln!(
             export_pragmas,
             "#pragma comment(linker, \"/EXPORT:\\\"{}\\\"\")",
             entry
+        );
+        let _ = writeln!(
+            export_pragmas,
+            "#pragma comment(linker, \"/alternatename:AheadLibEx_{}=_AheadLibEx_{}\")",
+            exp.stub,
+            exp.stub
         );
     }
 
@@ -561,7 +567,7 @@ pub fn render_c(ctx: &VsTemplateContext) -> String {
     for exp in &exports {
         let _ = writeln!(
             trampolines,
-            "__declspec(naked) AHEADLIB_EXTERN void AheadLibEx_{name}(void) {{ __asm {{ jmp dword ptr [pfnAheadLibEx_{name}] }} }}",
+            "__declspec(naked) AHEADLIB_EXTERN void __cdecl AheadLibEx_{name}(void) {{ __asm {{ jmp dword ptr [pfnAheadLibEx_{name}] }} }}",
             name = exp.stub
         );
     }
