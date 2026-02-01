@@ -1,4 +1,4 @@
-use crate::ui_events::{generate, handle_drop, pick_dir, pick_dll, reset, UiState};
+use crate::ui_events::{generate, handle_drop, pick_dir, pick_dll, reset, OriginModeChoice, UiState};
 use anyhow::Result;
 use eframe::egui::{self, Color32, Frame, Id, Order, RichText, Rounding, Stroke, ViewportCommand};
 
@@ -154,7 +154,7 @@ impl eframe::App for App {
                             .color(colors::TEXT_PRIMARY),
                     );
                     ui.label(
-                        RichText::new("v0.2.2")
+                        RichText::new("v0.2.3")
                             .size(12.0)
                             .color(colors::TEXT_SECONDARY),
                     );
@@ -373,6 +373,64 @@ impl App {
                 });
 
                 ui.add_space(SPACING);
+                ui.separator();
+                ui.add_space(SPACING);
+
+                ui.label(
+                    RichText::new("Original DLL")
+                        .size(12.0)
+                        .color(colors::TEXT_SECONDARY),
+                );
+                ui.add_space(4.0);
+
+                egui::ComboBox::from_id_source("origin_mode")
+                    .selected_text(match state.origin_mode {
+                        OriginModeChoice::SystemDir => "System directory",
+                        OriginModeChoice::SameDir => "Same directory (renamed)",
+                        OriginModeChoice::CustomPath => "Custom path",
+                    })
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut state.origin_mode,
+                            OriginModeChoice::SystemDir,
+                            "System directory",
+                        );
+                        ui.selectable_value(
+                            &mut state.origin_mode,
+                            OriginModeChoice::SameDir,
+                            "Same directory (renamed)",
+                        );
+                        ui.selectable_value(
+                            &mut state.origin_mode,
+                            OriginModeChoice::CustomPath,
+                            "Custom path",
+                        );
+                    });
+
+                ui.add_space(6.0);
+                match state.origin_mode {
+                    OriginModeChoice::SystemDir => {}
+                    OriginModeChoice::SameDir => {
+                        ui.add_sized(
+                            [ui.available_width(), CONTROL_HEIGHT],
+                            egui::TextEdit::singleline(&mut state.origin_same_dir_name).hint_text(
+                                RichText::new("e.g. foo_orig.dll")
+                                    .size(13.0)
+                                    .color(colors::TEXT_HINT),
+                            ),
+                        );
+                    }
+                    OriginModeChoice::CustomPath => {
+                        ui.add_sized(
+                            [ui.available_width(), CONTROL_HEIGHT],
+                            egui::TextEdit::singleline(&mut state.origin_custom_path).hint_text(
+                                RichText::new("e.g. C:\\\\path\\\\to\\\\foo.dll or foo_orig.dll")
+                                    .size(13.0)
+                                    .color(colors::TEXT_HINT),
+                            ),
+                        );
+                    }
+                }
 
                 ui.label(
                     RichText::new("Output Directory")

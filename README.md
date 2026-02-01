@@ -10,6 +10,21 @@ Rust rewrite this project. It inspects a DLL’s export table and generates the 
 - Emit ready-to-build VS2022/VS2026 projects with configs/files trimmed to the DLL arch; single-select output (sources or VS project).
 - GUI with drag/drop DLL, directory picker, and read-only log; English UI/logs.
 
+## Original DLL Loading
+Generated proxy sources need to load the original DLL. This project supports multiple load modes so you can hijack both system DLLs and application-private DLLs.
+
+- `system` (default): load from `%SystemRoot%\\System32\\<dll>` (current behavior).
+- `samedir`: load from the proxy DLL directory using a renamed filename (default name: `<stem>_orig.dll`).
+- `custom`: load from a custom path (absolute/UNC, or relative to the proxy DLL directory).
+
+CLI options:
+
+```text
+--origin-mode <system|samedir|custom>
+--origin-name <name.dll>     (for samedir)
+--origin-path <path>         (for custom)
+```
+
 ## Refactor Timeline
 
 - **2025-12-01**: Rebuilt the GUI layer in Rust with a fixed layout, unified theming, and decoupled event handling.

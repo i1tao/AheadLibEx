@@ -9,6 +9,21 @@ Rust 重写的 AheadLibEx，用于解析 DLL 导出表并生成代理源码，�
 - GUI：拖拽 DLL、目录选择、只读日志，英文界面/日志。
 - CLI：`aheadlibex-rs.exe <source|vs2022|vs2026> <dll_path> <output_dir>`，支持 `--help`。
 
+## 原始 DLL 加载模式
+生成的代理源码需要加载原始 DLL。为兼容系统 DLL 与应用私有 DLL，本项目提供多种加载模式。
+
+- `system`：从 `%SystemRoot%\\System32\\<dll>` 加载（默认行为）。
+- `samedir`：从代理 DLL 所在目录加载改名后的原始 DLL（默认文件名：`<stem>_orig.dll`）。
+- `custom`：从自定义路径加载（支持绝对路径、UNC 路径，或相对代理 DLL 目录的相对路径）。
+
+CLI 选项：
+
+```text
+--origin-mode <system|samedir|custom>
+--origin-name <name.dll>     (samedir 模式使用)
+--origin-path <path>         (custom 模式使用)
+```
+
 ## 分层架构
 - `domain`：领域模型与 DLL 导出解析（核心逻辑）。
 - `application`：用例编排与 UI 事件（生成流程、状态管理）。

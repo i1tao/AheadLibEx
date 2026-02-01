@@ -1,6 +1,6 @@
 use aheadlibex_rs::dll::ExportEntry;
 use aheadlibex_rs::templates::{
-    render_asm_x64, render_c, render_c_x64, VsGuids, VsTemplateContext,
+    render_asm_x64, render_c, render_c_x64, OriginLoadMode, VsGuids, VsTemplateContext,
 };
 
 fn dummy_ctx<'a>(exports: &'a [ExportEntry]) -> VsTemplateContext<'a> {
@@ -15,6 +15,7 @@ fn dummy_ctx<'a>(exports: &'a [ExportEntry]) -> VsTemplateContext<'a> {
         project_name: "Foo",
         dll_name: "Foo.dll",
         base_name: "Foo",
+        origin_load_mode: OriginLoadMode::SystemDir,
         exports,
         guids,
     }

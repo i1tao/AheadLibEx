@@ -4,7 +4,7 @@ use crate::dll;
 use crate::templates::{
     render_asm_x64, render_c, render_c_x64, render_filters, render_filters_2026, render_solution,
     render_slnx_2026, render_user, render_user_2026, render_vcxproj, render_vcxproj_2026, VsGuids,
-    VsTemplateContext,
+    OriginLoadMode, OriginLoadModeOwned, VsTemplateContext,
 };
 use eframe::egui;
 use rfd;
@@ -21,12 +21,22 @@ pub enum OutputTarget {
     Vs2026,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum OriginModeChoice {
+    SystemDir,
+    SameDir,
+    CustomPath,
+}
+
 pub struct UiState {
     pub dll_path: String,
     pub project_dir: String,
     pub output_source: bool,
     pub output_vs2022: bool,
     pub output_vs2026: bool,
+    pub origin_mode: OriginModeChoice,
+    pub origin_same_dir_name: String,
+    pub origin_custom_path: String,
     pub log: String,
     pub dragging: bool,
     pub success: Option<bool>,
@@ -40,6 +50,9 @@ impl UiState {
             output_source: false,
             output_vs2022: false,
             output_vs2026: false,
+            origin_mode: OriginModeChoice::SystemDir,
+            origin_same_dir_name: String::new(),
+            origin_custom_path: String::new(),
             log: default_log(),
             dragging: false,
             success: None,
@@ -66,6 +79,7 @@ pub fn pick_dll(state: &mut UiState) {
         state.project_dir = default_project_dir(&p)
             .or_else(|| fallback_parent_dir(&p))
             .unwrap_or_default();
+        ensure_default_origin_same_dir_name(state, &p);
     }
 }
 
@@ -138,12 +152,28 @@ pub fn generate(state: &mut UiState) {
             state.success = Some(true);
 
             let exports_for_write = exports;
+            let dll_stem = dll_path
+                .file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let origin_load_mode = match build_origin_load_mode(state, &dll_stem) {
+                Ok(v) => v,
+                Err(err) => {
+                    state
+                        .log
+                        .push_str(&format!("\n-- Origin DLL config invalid --\n{err}"));
+                    state.success = Some(false);
+                    return;
+                }
+            };
+            let origin = origin_load_mode.as_borrowed();
 
             if state.output_source {
                 match write_source_files(
                     dll_path,
                     Path::new(state.project_dir.trim()),
                     is_x64,
+                    origin,
                     &exports_for_write,
                 ) {
                     Ok(_) => state.log.push_str("\n-- Source files written successfully --"),
@@ -160,6 +190,7 @@ pub fn generate(state: &mut UiState) {
                     dll_path,
                     Path::new(state.project_dir.trim()),
                     is_x64,
+                    origin,
                     &exports_for_write,
                 ) {
                     Ok(_) => state
@@ -179,6 +210,7 @@ pub fn generate(state: &mut UiState) {
                     dll_path,
                     Path::new(state.project_dir.trim()),
                     is_x64,
+                    origin,
                     &exports_for_write,
                 ) {
                     Ok(_) => state
@@ -204,6 +236,7 @@ pub fn generate_cli(
     target: OutputTarget,
     dll_path: &Path,
     output_dir: &Path,
+    origin_load_mode: OriginLoadModeOwned,
 ) -> anyhow::Result<Vec<String>> {
     if !dll_path.exists() {
         return Err(anyhow::anyhow!("DLL path not found: {}", dll_path.display()));
@@ -214,10 +247,11 @@ pub fn generate_cli(
     exports.sort_by_key(|e| e.ordinal);
     let is_x64 = info.arch.eq_ignore_ascii_case("x64");
 
+    let origin = origin_load_mode.as_borrowed();
     match target {
-        OutputTarget::Source => write_source_files(dll_path, output_dir, is_x64, &exports),
-        OutputTarget::Vs2022 => write_vs2022_project(dll_path, output_dir, is_x64, &exports),
-        OutputTarget::Vs2026 => write_vs2026_project(dll_path, output_dir, is_x64, &exports),
+        OutputTarget::Source => write_source_files(dll_path, output_dir, is_x64, origin, &exports),
+        OutputTarget::Vs2022 => write_vs2022_project(dll_path, output_dir, is_x64, origin, &exports),
+        OutputTarget::Vs2026 => write_vs2026_project(dll_path, output_dir, is_x64, origin, &exports),
     }
 }
 
@@ -227,6 +261,9 @@ pub fn reset(state: &mut UiState) {
     state.output_source = false;
     state.output_vs2022 = false;
     state.output_vs2026 = false;
+    state.origin_mode = OriginModeChoice::SystemDir;
+    state.origin_same_dir_name.clear();
+    state.origin_custom_path.clear();
     state.log = default_log();
     state.success = None;
 }
@@ -243,6 +280,7 @@ pub fn handle_drop(state: &mut UiState, ctx: &egui::Context) {
                     state.project_dir = default_project_dir(p)
                         .or_else(|| fallback_parent_dir(p))
                         .unwrap_or_default();
+                    ensure_default_origin_same_dir_name(state, p);
                     state.log = format!(
                         "Loaded: {}",
                         p.file_name().unwrap_or_default().to_string_lossy()
@@ -252,6 +290,40 @@ pub fn handle_drop(state: &mut UiState, ctx: &egui::Context) {
             }
         }
     });
+}
+
+fn ensure_default_origin_same_dir_name(state: &mut UiState, dll_path: &Path) {
+    if !state.origin_same_dir_name.trim().is_empty() {
+        return;
+    }
+    let Some(stem) = dll_path.file_stem().map(|s| s.to_string_lossy().to_string()) else {
+        return;
+    };
+    if stem.is_empty() {
+        return;
+    }
+    state.origin_same_dir_name = format!("{stem}_orig.dll");
+}
+
+fn build_origin_load_mode(state: &UiState, dll_stem: &str) -> anyhow::Result<OriginLoadModeOwned> {
+    match state.origin_mode {
+        OriginModeChoice::SystemDir => Ok(OriginLoadModeOwned::system_dir()),
+        OriginModeChoice::SameDir => {
+            let name = state.origin_same_dir_name.trim();
+            if name.is_empty() {
+                Ok(OriginLoadModeOwned::same_dir(format!("{dll_stem}_orig.dll")))
+            } else {
+                Ok(OriginLoadModeOwned::same_dir(name.to_string()))
+            }
+        }
+        OriginModeChoice::CustomPath => {
+            let p = state.origin_custom_path.trim();
+            if p.is_empty() {
+                anyhow::bail!("Please set a custom origin DLL path");
+            }
+            Ok(OriginLoadModeOwned::custom_path(p.to_string()))
+        }
+    }
 }
 
 fn default_project_dir(dll_path: &Path) -> Option<String> {
@@ -296,6 +368,7 @@ fn write_source_files(
     dll_path: &Path,
     output_dir: &Path,
     is_x64: bool,
+    origin_load_mode: OriginLoadMode<'_>,
     exports: &[dll::ExportEntry],
 ) -> anyhow::Result<Vec<String>> {
     let dll_stem = dll_path
@@ -328,6 +401,7 @@ fn write_source_files(
         project_name: &base_name,
         dll_name: &dll_name,
         base_name: &base_name,
+        origin_load_mode,
         exports,
         guids,
     };
@@ -371,6 +445,7 @@ fn write_vs2022_project(
     dll_path: &Path,
     output_dir: &Path,
     is_x64: bool,
+    origin_load_mode: OriginLoadMode<'_>,
     exports: &[dll::ExportEntry],
 ) -> anyhow::Result<Vec<String>> {
     let dll_stem = dll_path
@@ -405,6 +480,7 @@ fn write_vs2022_project(
         project_name: &project_name,
         dll_name: &dll_name,
         base_name: &base_name,
+        origin_load_mode,
         exports,
         guids,
     };
@@ -456,6 +532,7 @@ fn write_vs2026_project(
     dll_path: &Path,
     output_dir: &Path,
     is_x64: bool,
+    origin_load_mode: OriginLoadMode<'_>,
     exports: &[dll::ExportEntry],
 ) -> anyhow::Result<Vec<String>> {
     let dll_stem = dll_path
@@ -490,6 +567,7 @@ fn write_vs2026_project(
         project_name: &project_name,
         dll_name: &dll_name,
         base_name: &base_name,
+        origin_load_mode,
         exports,
         guids,
     };

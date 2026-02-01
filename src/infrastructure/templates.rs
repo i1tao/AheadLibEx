@@ -5,6 +5,44 @@ use std::collections::HashSet;
 use std::fmt::Write;
 
 #[derive(Clone, Debug)]
+pub enum OriginLoadModeOwned {
+    SystemDir,
+    SameDir { original_name: String },
+    CustomPath { path: String },
+}
+
+impl OriginLoadModeOwned {
+    pub fn system_dir() -> Self {
+        Self::SystemDir
+    }
+
+    pub fn same_dir(original_name: String) -> Self {
+        Self::SameDir { original_name }
+    }
+
+    pub fn custom_path(path: String) -> Self {
+        Self::CustomPath { path }
+    }
+
+    pub fn as_borrowed(&self) -> OriginLoadMode<'_> {
+        match self {
+            Self::SystemDir => OriginLoadMode::SystemDir,
+            Self::SameDir { original_name } => OriginLoadMode::SameDir {
+                original_name: original_name.as_str(),
+            },
+            Self::CustomPath { path } => OriginLoadMode::CustomPath { path: path.as_str() },
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum OriginLoadMode<'a> {
+    SystemDir,
+    SameDir { original_name: &'a str },
+    CustomPath { path: &'a str },
+}
+
+#[derive(Clone, Debug)]
 pub struct VsGuids<'a> {
     pub solution: &'a str,
     pub project: &'a str,
@@ -18,6 +56,7 @@ pub struct VsTemplateContext<'a> {
     pub project_name: &'a str,
     pub dll_name: &'a str,
     pub base_name: &'a str,
+    pub origin_load_mode: OriginLoadMode<'a>,
     pub exports: &'a [ExportEntry],
     pub guids: VsGuids<'a>,
 }
@@ -90,6 +129,138 @@ fn fill(template: &str, pairs: &[(&str, String)]) -> String {
         }
         if !changed {
             break;
+        }
+    }
+    out
+}
+
+fn escape_c_text_literal(s: &str) -> String {
+    // For embedding inside TEXT("...") / L"..."
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\r' => {}
+            '\n' => out.push_str("\\n"),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+fn render_load_origin_module(ctx: &VsTemplateContext) -> String {
+    let mut out = String::new();
+    match ctx.origin_load_mode {
+        OriginLoadMode::SystemDir => {
+            let dll = escape_c_text_literal(ctx.dll_name);
+            let _ = writeln!(out, "    TCHAR module_path[MAX_PATH] = {{ 0 }};");
+            let _ = writeln!(out, "    TCHAR message[MAX_PATH] = {{ 0 }};");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    UNREFERENCED_PARAMETER(module);");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    GetSystemDirectory(module_path, MAX_PATH);");
+            let _ = writeln!(out, "    lstrcat(module_path, TEXT(\"\\\\\"));");
+            let _ = writeln!(out, "    lstrcat(module_path, TEXT(\"{}\"));", dll);
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    g_origin_module_handle = LoadLibrary(module_path);");
+            let _ = writeln!(out, "    if (!g_origin_module_handle)");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        wsprintf(message, TEXT(\"Cannot locate %s, AheadLibEx cannot continue.\\\\nerror code:0x%08X\"), module_path, GetLastError());");
+            let _ = writeln!(out, "        MessageBox(NULL, message, TEXT(\"AheadLibEx\"), MB_ICONSTOP);");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    return g_origin_module_handle != NULL;");
+        }
+        OriginLoadMode::SameDir { original_name } => {
+            let original = escape_c_text_literal(original_name);
+            let _ = writeln!(out, "    TCHAR module_path[MAX_PATH] = {{ 0 }};");
+            let _ = writeln!(out, "    TCHAR message[MAX_PATH] = {{ 0 }};");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    DWORD n = GetModuleFileName(module, module_path, MAX_PATH);");
+            let _ = writeln!(out, "    if (n == 0 || n >= MAX_PATH)");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        wsprintf(message, TEXT(\"GetModuleFileName failed, AheadLibEx cannot continue.\\\\nerror code:0x%08X\"), GetLastError());");
+            let _ = writeln!(out, "        MessageBox(NULL, message, TEXT(\"AheadLibEx\"), MB_ICONSTOP);");
+            let _ = writeln!(out, "        return FALSE;");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    TCHAR* last = NULL;");
+            let _ = writeln!(out, "    for (TCHAR* p = module_path; *p; ++p)");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        if (*p == TEXT('\\\\') || *p == TEXT('/'))");
+            let _ = writeln!(out, "        {{");
+            let _ = writeln!(out, "            last = p;");
+            let _ = writeln!(out, "        }}");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "    if (last)");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        *(last + 1) = TEXT('\\0');");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "    else");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        module_path[0] = TEXT('\\0');");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    lstrcat(module_path, TEXT(\"{}\"));", original);
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    g_origin_module_handle = LoadLibrary(module_path);");
+            let _ = writeln!(out, "    if (!g_origin_module_handle)");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        wsprintf(message, TEXT(\"Cannot locate %s, AheadLibEx cannot continue.\\\\nerror code:0x%08X\"), module_path, GetLastError());");
+            let _ = writeln!(out, "        MessageBox(NULL, message, TEXT(\"AheadLibEx\"), MB_ICONSTOP);");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    return g_origin_module_handle != NULL;");
+        }
+        OriginLoadMode::CustomPath { path } => {
+            let origin_cfg = escape_c_text_literal(path);
+            let _ = writeln!(out, "    TCHAR module_path[MAX_PATH] = {{ 0 }};");
+            let _ = writeln!(out, "    TCHAR message[MAX_PATH] = {{ 0 }};");
+            let _ = writeln!(out, "    const TCHAR origin_cfg[] = TEXT(\"{}\");", origin_cfg);
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    if ((origin_cfg[0] && origin_cfg[1] == TEXT(':')) || origin_cfg[0] == TEXT('\\\\') || origin_cfg[0] == TEXT('/'))");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        lstrcpyn(module_path, origin_cfg, MAX_PATH);");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "    else");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        DWORD n = GetModuleFileName(module, module_path, MAX_PATH);");
+            let _ = writeln!(out, "        if (n == 0 || n >= MAX_PATH)");
+            let _ = writeln!(out, "        {{");
+            let _ = writeln!(out, "            wsprintf(message, TEXT(\"GetModuleFileName failed, AheadLibEx cannot continue.\\\\nerror code:0x%08X\"), GetLastError());");
+            let _ = writeln!(out, "            MessageBox(NULL, message, TEXT(\"AheadLibEx\"), MB_ICONSTOP);");
+            let _ = writeln!(out, "            return FALSE;");
+            let _ = writeln!(out, "        }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "        TCHAR* last = NULL;");
+            let _ = writeln!(out, "        for (TCHAR* p = module_path; *p; ++p)");
+            let _ = writeln!(out, "        {{");
+            let _ = writeln!(out, "            if (*p == TEXT('\\\\') || *p == TEXT('/'))");
+            let _ = writeln!(out, "            {{");
+            let _ = writeln!(out, "                last = p;");
+            let _ = writeln!(out, "            }}");
+            let _ = writeln!(out, "        }}");
+            let _ = writeln!(out, "        if (last)");
+            let _ = writeln!(out, "        {{");
+            let _ = writeln!(out, "            *(last + 1) = TEXT('\\0');");
+            let _ = writeln!(out, "        }}");
+            let _ = writeln!(out, "        else");
+            let _ = writeln!(out, "        {{");
+            let _ = writeln!(out, "            module_path[0] = TEXT('\\0');");
+            let _ = writeln!(out, "        }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "        lstrcat(module_path, origin_cfg);");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    g_origin_module_handle = LoadLibrary(module_path);");
+            let _ = writeln!(out, "    if (!g_origin_module_handle)");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        wsprintf(message, TEXT(\"Cannot locate %s, AheadLibEx cannot continue.\\\\nerror code:0x%08X\"), module_path, GetLastError());");
+            let _ = writeln!(out, "        MessageBox(NULL, message, TEXT(\"AheadLibEx\"), MB_ICONSTOP);");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    return g_origin_module_handle != NULL;");
         }
     }
     out
@@ -593,6 +764,7 @@ pub fn render_c(ctx: &VsTemplateContext) -> String {
         TPL_C_X86,
         &[
             ("DLL_NAME", ctx.dll_name.to_string()),
+            ("LOAD_ORIGIN_MODULE", render_load_origin_module(ctx)),
             ("EXPORT_PRAGMAS", export_pragmas),
             ("FORWARD_DECLS", forward_decls),
             ("INIT_FORWARDERS", init_forwarders),
@@ -649,6 +821,7 @@ pub fn render_c_x64(ctx: &VsTemplateContext) -> String {
         TPL_C_X64,
         &[
             ("DLL_NAME", ctx.dll_name.to_string()),
+            ("LOAD_ORIGIN_MODULE", render_load_origin_module(ctx)),
             ("EXPORT_PRAGMAS", export_pragmas),
             ("FORWARD_DECLS", forward_decls),
             ("INIT_FORWARDERS", init_forwarders),
