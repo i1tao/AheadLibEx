@@ -540,8 +540,12 @@ pub fn render_c(ctx: &VsTemplateContext) -> String {
         } else {
             ""
         };
-        let entry = format!("\"{}=_AheadLibEx_{},@{}{}\"", exp.label, exp.stub, exp.ordinal, noname);
-        let _ = writeln!(export_pragmas, "#pragma comment(linker, \"/EXPORT:{}\")", entry);
+        let entry = format!("{}=_AheadLibEx_{},@{}{}", exp.label, exp.stub, exp.ordinal, noname);
+        let _ = writeln!(
+            export_pragmas,
+            "#pragma comment(linker, \"/EXPORT:\\\"{}\\\"\")",
+            entry
+        );
     }
 
     let mut forward_decls = String::new();
@@ -601,8 +605,12 @@ pub fn render_c_x64(ctx: &VsTemplateContext) -> String {
         } else {
             ""
         };
-        let entry = format!("\"{}=AheadLibEx_{},@{}{}\"", exp.label, exp.stub, exp.ordinal, noname);
-        let _ = writeln!(export_pragmas, "#pragma comment(linker, \"/EXPORT:{}\")", entry);
+        let entry = format!("{}=AheadLibEx_{},@{}{}", exp.label, exp.stub, exp.ordinal, noname);
+        let _ = writeln!(
+            export_pragmas,
+            "#pragma comment(linker, \"/EXPORT:\\\"{}\\\"\")",
+            entry
+        );
     }
 
     let mut forward_decls = String::new();
