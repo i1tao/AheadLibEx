@@ -26,6 +26,7 @@ Rust 重写的 AheadLibEx，用于解析 DLL 导出表并生成代理源码，�
 - **2025-12-07**：CLI 完善（参数/帮助），GUI 启动自动分离控制台，模板统一四空格，VS 命名规范化。
 - **2025-12-08**：分层为 enterprise-style（domain/application/infrastructure/presentation）并再导出；模板 include 改用 `CARGO_MANIFEST_DIR`；CLI banner 与 GUI 品牌对齐。
 - **2026-02-01**：修正 x64 生成的 `#pragma comment(linker, "/EXPORT:...")` 引号转义。
+- **2026-02-01**：调整 GUI 布局：`Project Settings` 上移至 `Output Log` 之上；`Outputs` 复选框改为左右平铺并支持换行；同步调整日志区域与窗口高度，避免底部信息被遮挡。
 
 ## 运行
 - GUI：直接双击可启动（Windows Release 无控制台闪烁）。

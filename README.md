@@ -21,6 +21,7 @@ Rust rewrite this project. It inspects a DLL’s export table and generates the 
 - **2025-12-07**: CLI polished (`aheadlibex-rs.exe <source|vs2022|vs2026> <dll_path> <output_dir>` with `--help`), GUI auto-detaches console on launch, templates normalized to four-space indents, and VS naming updated: solution `AheadlibEx_<DLL name>`, project uses the DLL name, outputs follow the new naming.
 - **2025-12-08**: Restructured codebase into enterprise-style layers (`domain`, `application`, `infrastructure`, `presentation`) with public re-exports; template includes now use `CARGO_MANIFEST_DIR` to keep paths stable after refactors; CLI banner aligns with GUI branding.
 - **2026-02-01**: Fixed x64 generated `#pragma comment(linker, "/EXPORT:...")` quote escaping.
+- **2026-02-01**: GUI layout updated: `Project Settings` moved above `Output Log`, `Outputs` checkboxes use a horizontal wrapped layout, and the log area/window height were adjusted to keep the footer visible.
 
 ## Credits
 
