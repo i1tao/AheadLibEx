@@ -1,52 +1,110 @@
-# AheadLibEx (Rust) 中文版
+# AheadLibEx (Rust)
 
-Rust 重写的 AheadLibEx，用于解析 DLL 导出表并生成代理源码，以及可直接打开的 Visual Studio 项目。
+AheadLibEx (Rust) 用于解析 DLL 导出表并生成代理 DLL 工程：根据导出表生成转发逻辑与代理源码，并按所选输出类型生成 Visual Studio 或 CMake 构建文件。
 
-## 功能
-- 解析 PE 导出表，识别 DLL 架构（x86/x64），列出导出名/序号/转发。
-- 生成代理源码：x86 输出 C 代理；x64 输出 C 代理 + 跳转 ASM，支持 C/C++ 构建。
-- 生成 VS2022/VS2026 项目，按架构裁剪配置/文件，单选输出（源码或 VS 项目）。
-- GUI：拖拽 DLL、目录选择、只读日志，英文界面/日志。
-- CLI：`aheadlibex-rs.exe <source|vs2022|vs2026> <dll_path> <output_dir>`，支持 `--help`。
+English document: `README.md`。
 
-## 原始 DLL 加载模式
-生成的代理源码需要加载原始 DLL。为兼容系统 DLL 与应用私有 DLL，本项目提供多种加载模式。
+## 输出类型
+- `source`：仅生成代理源码
+- `vs2022`：生成 Visual Studio 2022 解决方案与工程
+- `vs2026`：生成 Visual Studio 2026 解决方案与工程
+- `cmake`：生成 `CMakeLists.txt`，用于 MSVC 或 MinGW-w64 构建
 
-- `system`：从 `%SystemRoot%\\System32\\<dll>` 加载（默认行为）。
-- `samedir`：从代理 DLL 所在目录加载改名后的原始 DLL（默认文件名：`<stem>_orig.dll`）。
-- `custom`：从自定义路径加载（支持绝对路径、UNC 路径，或相对代理 DLL 目录的相对路径）。
+## 生成内容
+- 基于输入 DLL 的导出表生成导出转发逻辑（导出名、序号、转发项）
+- 代理源码
+  - x86：仅生成 C 代理源码
+  - x64：生成 C 代理源码与跳转表（MSVC 类工具链生成 MASM，GNU 类工具链生成 GAS）
+- 生成用于控制导出的 `.def` 文件（在对应构建系统下使用）
+- 按输出类型生成工程文件（Visual Studio 或 CMake）
 
-CLI 选项：
+## 快速使用
+GUI：
+- 无参数启动 `aheadlibex-rs.exe`，选择 DLL 与输出目录，然后选择输出类型并生成。
+
+CLI：
 
 ```text
---origin-mode <system|samedir|custom>
---origin-name <name.dll>     (samedir 模式使用)
---origin-path <path>         (custom 模式使用)
+aheadlibex-rs.exe <source|vs2022|vs2026|cmake> <dll_path> <output_dir> [--origin-mode <system|samedir|custom>] [--origin-name <name.dll>] [--origin-path <path>]
 ```
 
-## 分层架构
-- `domain`：领域模型与 DLL 导出解析（核心逻辑）。
-- `application`：用例编排与 UI 事件（生成流程、状态管理）。
-- `infrastructure`：模板与文件生成（使用 `CARGO_MANIFEST_DIR` 定位模板）。
-- `presentation`：GUI 展示与交互。
-- `lib.rs` 对外再导出核心模块，保持原有模块路径兼容。
+示例（默认 `system` 模式）：
 
-## 重构时间线
-- **2025-12-01**：Rust 重建 GUI，固定布局与主题，解耦事件。
-- **2025-12-02 (Part 1)**：模块扁平化，英文 UI/日志，输出日志只读，优化导出日志构建。
-- **2025-12-02 (Part 2)**：新增 VS2022 模板与单选输出，整理模板目录。
-- **2025-12-03 (Part 1)**：新增 VS2026 模板，GUI 支持 VS2026 生成。
-- **2025-12-03 (Part 2)**：按架构裁剪输出与模板占位；x64 生成 C+ASM，x86 仅 C；x86 使用 `AHEADLIB_EXTERN`。
-- **2025-12-04**：导出宏来源改为项目名（大写+`_EXPORTS`），VS 模板注入宏。
-- **2025-12-07**：CLI 完善（参数/帮助），GUI 启动自动分离控制台，模板统一四空格，VS 命名规范化。
-- **2025-12-08**：分层为 enterprise-style（domain/application/infrastructure/presentation）并再导出；模板 include 改用 `CARGO_MANIFEST_DIR`；CLI banner 与 GUI 品牌对齐。
-- **2026-02-01**：修正 x64 生成的 `#pragma comment(linker, "/EXPORT:...")` 引号转义。
-- **2026-02-01**：调整 GUI 布局：`Project Settings` 上移至 `Output Log` 之上；`Outputs` 复选框改为左右平铺并支持换行；同步调整日志区域与窗口高度，避免底部信息被遮挡。
+```text
+aheadlibex-rs.exe source "C:\path\to\foo.dll" "C:\path\to\out"
+aheadlibex-rs.exe vs2022 "C:\path\to\foo.dll" "C:\path\to\out"
+aheadlibex-rs.exe vs2026 "C:\path\to\foo.dll" "C:\path\to\out"
+aheadlibex-rs.exe cmake  "C:\path\to\foo.dll" "C:\path\to\out"
+```
 
-## 运行
-- GUI：直接双击可启动（Windows Release 无控制台闪烁）。
-- CLI：在同目录执行 `aheadlibex-rs.exe <target> <dll_path> <output_dir>`，打印生成文件列表。
+## 原始 DLL 加载
+生成的代理源码需要加载原始 DLL，支持多种加载模式。
 
-## 许可证与作者
-- 许可证：GPL-3.0-only，详见 `LICENSE`。
+- `system`（默认）：从 `%SystemRoot%\System32\<dll>` 加载
+- `samedir`：从代理 DLL 所在目录加载改名后的原始 DLL（默认文件名：`<stem>_orig.dll`）
+- `custom`：从自定义路径加载（绝对路径、UNC，或相对代理 DLL 目录的相对路径）
+
+示例（自定义加载模式）：
+
+```text
+aheadlibex-rs.exe vs2022 "C:\path\to\foo.dll" "C:\path\to\out" --origin-mode samedir --origin-name "foo_orig.dll"
+aheadlibex-rs.exe source "C:\path\to\foo.dll" "C:\path\to\out" --origin-mode custom --origin-path "\\server\share\foo.dll"
+```
+
+选项说明：
+- `--origin-name` 与 `--origin-mode samedir` 配合使用
+- `--origin-path` 与 `--origin-mode custom` 配合使用
+
+## 构建说明
+- Visual Studio 输出：打开生成的解决方案进行构建。
+- CMake 输出：使用常规 CMake 流程配置与构建，例如：
+
+```text
+cmake -S . -B build
+cmake --build build --config Release
+```
+
+## 输出文件清单
+生成文件名以输入 DLL 的文件名主体为基准（例如 `version.dll` 的主体为 `version`）。
+
+`source`：
+- x86：`<stem>_x86.c`、`<stem>_x86_jump.asm`、`<stem>_x86_jump.S`、`<stem>.def`
+- x64：`<stem>_x64.c`、`<stem>_x64_jump.asm`、`<stem>_x64_jump.S`、`<stem>.def`
+
+`cmake`：
+- `CMakeLists.txt`
+- 以及与 `source` 相同的架构文件集合。
+
+`vs2022`：
+- `AheadlibEx_<stem>.sln`
+- `<stem>.vcxproj`、`<stem>.vcxproj.filters`、`<stem>.vcxproj.user`
+- x86：`<stem>_x86.c`、`<stem>_x86_jump.asm`、`<stem>.def`
+- x64：`<stem>_x64.c`、`<stem>_x64_jump.asm`、`<stem>.def`
+
+`vs2026`：
+- `AheadlibEx_<stem>.slnx`
+- `<stem>.vcxproj`、`<stem>.vcxproj.filters`、`<stem>.vcxproj.user`
+- x86：`<stem>_x86.c`、`<stem>_x86_jump.asm`、`<stem>.def`
+- x64：`<stem>_x64.c`、`<stem>_x64_jump.asm`、`<stem>.def`
+
+说明：
+- `.asm` 为 MASM（MSVC 与 clang-cl 工具链）。
+- `.S` 为 GAS（GNU 类工具链）。Visual Studio 输出仅包含 `.asm`。
+
+## 备注
+- 导出列表来自输入 DLL 的导出表解析结果。
+- 已于 2026-02-03 移除 xmake 输出目标与相关模板。
+
+## 作者
 - 作者：i1tao；仓库：https://github.com/i1tao/aheadlibex
+
+## Credits
+
+- Original idea and C++ implementation: [AheadLibEx](https://github.com/i1tao/AheadLibEx)
+- Based on AheadLib-x86-x64 by [strivexjun](https://github.com/strivexjun/AheadLib-x86-x64)
+- Thanks to [JetBrains](https://www.jetbrains.com/?from=i1tao) for providing free licenses such as [RustRover](https://www.jetbrains.com/Rust/?from=i1tao) for my open-source projects.
+[<img src="https://resources.jetbrains.com/storage/products/company/brand/logos/RustRover_icon.png" alt="RustRover logo." width=200>](https://www.jetbrains.com/?from=i1tao)
+
+## License
+
+GPL-3.0-only. See `LICENSE`.

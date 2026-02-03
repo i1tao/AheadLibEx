@@ -1,4 +1,6 @@
-use crate::ui_events::{generate, handle_drop, pick_dir, pick_dll, reset, OriginModeChoice, UiState};
+use crate::ui_events::{
+    generate, handle_drop, pick_dir, pick_dll, reset, OriginModeChoice, UiLanguageChoice, UiState,
+};
 use anyhow::Result;
 use eframe::egui::{self, Color32, Frame, Id, Order, RichText, Rounding, Stroke, ViewportCommand};
 
@@ -17,6 +19,7 @@ mod colors {
 }
 
 const CONTROL_HEIGHT: f32 = 32.0;
+const PATH_CONTROL_HEIGHT: f32 = 36.0;
 const BUTTON_WIDTH: f32 = 88.0;
 const BROWSE_BTN_WIDTH: f32 = 56.0;
 const SPACING: f32 = 10.0;
@@ -29,9 +32,9 @@ const SECTION_TITLE_HEIGHT_ESTIMATE: f32 = 20.0;
 const HEADER_MARGIN_Y: f32 = 12.0;
 const BOTTOM_MARGIN_Y: f32 = 10.0;
 const BOTTOM_ACTIONS_FOOTER_GAP: f32 = 8.0;
-const MIN_WINDOW_W: f32 = 820.0;
+const MIN_WINDOW_W: f32 = 420.0;
 const MIN_WINDOW_H: f32 = 620.0;
-const MAX_WINDOW_W: f32 = 880.0;
+const MAX_WINDOW_W: f32 = 440.0;
 const MAX_WINDOW_H: f32 = 760.0;
 const FONT_CANDIDATES: [&str; 6] = [
     "C:\\Windows\\Fonts\\msyh.ttc",
@@ -45,7 +48,7 @@ const FONT_CANDIDATES: [&str; 6] = [
 pub fn launch_gui() -> Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([840.0, 660.0])
+            .with_inner_size([420.0, 660.0])
             .with_min_inner_size([MIN_WINDOW_W, MIN_WINDOW_H])
             .with_resizable(true)
             .with_drag_and_drop(true),
@@ -62,6 +65,14 @@ pub fn launch_gui() -> Result<()> {
         }),
     )
     .map_err(|e| anyhow::anyhow!("Failed to launch GUI: {e}"))
+}
+
+fn tr(lang: UiLanguageChoice, en: &'static str, zh_hans: &'static str, zh_hant: &'static str) -> &'static str {
+    match lang {
+        UiLanguageChoice::English => en,
+        UiLanguageChoice::ZhHans => zh_hans,
+        UiLanguageChoice::ZhHant => zh_hant,
+    }
 }
 
 fn setup_fonts(ctx: &egui::Context) {
@@ -124,10 +135,14 @@ impl eframe::App for App {
                 let max_w = (monitor_size.x * 0.92).min(MAX_WINDOW_W);
                 let max_h = (monitor_size.y * 0.92).min(MAX_WINDOW_H);
 
-                let w = (monitor_size.x * 0.54).clamp(MIN_WINDOW_W, max_w);
+                let w = (monitor_size.x * 0.27).clamp(MIN_WINDOW_W, max_w);
                 let h = (monitor_size.y * 0.78).clamp(MIN_WINDOW_H, max_h);
 
                 ctx.send_viewport_cmd(ViewportCommand::InnerSize(egui::vec2(w, h)));
+                ctx.send_viewport_cmd(ViewportCommand::OuterPosition(egui::pos2(
+                    ((monitor_size.x - w) * 0.5).max(0.0),
+                    ((monitor_size.y - h) * 0.5).max(0.0),
+                )));
                 ctx.send_viewport_cmd(ViewportCommand::Maximized(false));
                 self.did_apply_initial_viewport_size = true;
             }
@@ -146,7 +161,7 @@ impl eframe::App for App {
             .frame(header_frame)
             .show_separator_line(false)
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     ui.label(
                         RichText::new("AheadLibEx")
                             .size(20.0)
@@ -159,14 +174,36 @@ impl eframe::App for App {
                             .color(colors::TEXT_SECONDARY),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        egui::ComboBox::from_id_source("ui_language")
+                            .selected_text(self.state.ui_language.display_name())
+                            .width(110.0)
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut self.state.ui_language,
+                                    UiLanguageChoice::English,
+                                    UiLanguageChoice::English.display_name(),
+                                );
+                                ui.selectable_value(
+                                    &mut self.state.ui_language,
+                                    UiLanguageChoice::ZhHans,
+                                    UiLanguageChoice::ZhHans.display_name(),
+                                );
+                                ui.selectable_value(
+                                    &mut self.state.ui_language,
+                                    UiLanguageChoice::ZhHant,
+                                    UiLanguageChoice::ZhHant.display_name(),
+                                );
+                            });
                         ui.label(
-                            RichText::new("Rust Edition")
+                            RichText::new(tr(self.state.ui_language, "Language", "语言", "語言"))
                                 .size(11.0)
                                 .color(colors::TEXT_HINT),
                         );
                     });
                 });
             });
+
+        let lang = self.state.ui_language;
 
         egui::TopBottomPanel::bottom("bottom")
             .frame(bottom_frame)
@@ -180,12 +217,16 @@ impl eframe::App for App {
 
                         let any_target = self.state.output_source
                             || self.state.output_vs2022
-                            || self.state.output_vs2026;
+                            || self.state.output_vs2026
+                            || self.state.output_cmake;
 
                         if ui
                             .add_sized(
                                 [BUTTON_WIDTH, CONTROL_HEIGHT],
-                                egui::Button::new(RichText::new("Generate").color(Color32::WHITE))
+                                egui::Button::new(
+                                    RichText::new(tr(lang, "Generate", "生成", "生成"))
+                                        .color(Color32::WHITE),
+                                )
                                     .fill(if any_target { colors::ACCENT } else { colors::BORDER })
                                     .sense(if any_target {
                                         egui::Sense::click()
@@ -200,14 +241,20 @@ impl eframe::App for App {
                         }
 
                         if ui
-                            .add_sized([BUTTON_WIDTH, CONTROL_HEIGHT], egui::Button::new("Reset"))
+                            .add_sized(
+                                [BUTTON_WIDTH, CONTROL_HEIGHT],
+                                egui::Button::new(tr(lang, "Reset", "重置", "重置")),
+                            )
                             .clicked()
                         {
                             reset(&mut self.state);
                         }
 
                         if ui
-                            .add_sized([BUTTON_WIDTH, CONTROL_HEIGHT], egui::Button::new("Exit"))
+                            .add_sized(
+                                [BUTTON_WIDTH, CONTROL_HEIGHT],
+                                egui::Button::new(tr(lang, "Exit", "退出", "退出")),
+                            )
                             .clicked()
                         {
                             ui.ctx().send_viewport_cmd(ViewportCommand::Close);
@@ -279,7 +326,7 @@ impl eframe::App for App {
             painter.text(
                 rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "Drop DLL here",
+                tr(lang, "Drop DLL here", "将 DLL 拖放到此处", "將 DLL 拖放到此處"),
                 egui::FontId::proportional(16.0),
                 colors::ACCENT,
             );
@@ -288,6 +335,32 @@ impl eframe::App for App {
 }
 
 impl App {
+    fn centered_placeholder_text_edit(
+        ui: &mut egui::Ui,
+        size: [f32; 2],
+        text: &mut String,
+        placeholder: &str,
+    ) -> egui::Response {
+        let response = ui.add_sized(
+            size,
+            egui::TextEdit::singleline(text).vertical_align(egui::Align::Center),
+        );
+
+        if text.is_empty() {
+            let rect = response.rect;
+            let pos = egui::pos2(rect.left() + 6.0, rect.center().y);
+            ui.painter().text(
+                pos,
+                egui::Align2::LEFT_CENTER,
+                placeholder,
+                egui::FontId::proportional(13.0),
+                colors::TEXT_HINT,
+            );
+        }
+
+        response
+    }
+
     fn output_checkbox(ui: &mut egui::Ui, label: &str, state: &mut bool, others: &mut [&mut bool]) {
         let clicked = ui.checkbox(state, label).clicked();
         if clicked && *state {
@@ -302,17 +375,20 @@ impl App {
         source: &mut bool,
         vs2022: &mut bool,
         vs2026: &mut bool,
+        cmake: &mut bool,
     ) {
-        Self::output_checkbox(ui, "Source", source, &mut [vs2022, vs2026]);
-        Self::output_checkbox(ui, "VS2022", vs2022, &mut [source, vs2026]);
-        Self::output_checkbox(ui, "VS2026", vs2026, &mut [source, vs2022]);
+        Self::output_checkbox(ui, "Source", source, &mut [vs2022, vs2026, cmake]);
+        Self::output_checkbox(ui, "VS2022", vs2022, &mut [source, vs2026, cmake]);
+        Self::output_checkbox(ui, "VS2026", vs2026, &mut [source, vs2022, cmake]);
+        Self::output_checkbox(ui, "CMake", cmake, &mut [source, vs2022, vs2026]);
     }
 
     fn left_panel(&mut self, ui: &mut egui::Ui, card_height: f32) {
         let state = &mut self.state;
+        let lang = state.ui_language;
 
         ui.label(
-            RichText::new("Project Settings")
+            RichText::new(tr(lang, "Project Settings", "项目设置", "專案設定"))
                 .size(13.0)
                 .color(colors::TEXT_SECONDARY),
         );
@@ -328,24 +404,22 @@ impl App {
                         let input_width = ui.available_width() - BROWSE_BTN_WIDTH - SPACING;
 
                 ui.label(
-                    RichText::new("Input DLL")
+                    RichText::new(tr(lang, "Input DLL", "输入 DLL", "輸入 DLL"))
                         .size(12.0)
                         .color(colors::TEXT_SECONDARY),
                 );
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    ui.add_sized(
-                        [input_width, CONTROL_HEIGHT],
-                        egui::TextEdit::singleline(&mut state.dll_path).hint_text(
-                            RichText::new("Select or drop DLL...")
-                                .size(13.0)
-                                .color(colors::TEXT_HINT),
-                        ),
+                    Self::centered_placeholder_text_edit(
+                        ui,
+                        [input_width, PATH_CONTROL_HEIGHT],
+                        &mut state.dll_path,
+                        tr(lang, "Select or drop DLL...", "选择或拖放 DLL...", "選擇或拖放 DLL..."),
                     );
                     if ui
                         .add_sized(
-                            [BROWSE_BTN_WIDTH, CONTROL_HEIGHT],
-                            egui::Button::new("Browse"),
+                            [BROWSE_BTN_WIDTH, PATH_CONTROL_HEIGHT],
+                            egui::Button::new(tr(lang, "Browse", "浏览", "瀏覽")),
                         )
                         .clicked()
                     {
@@ -354,11 +428,40 @@ impl App {
                 });
 
                 ui.add_space(SPACING);
-                ui.separator();
+
+                ui.label(
+                    RichText::new(tr(lang, "Output Directory", "输出目录", "輸出目錄"))
+                        .size(12.0)
+                        .color(colors::TEXT_SECONDARY),
+                );
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    Self::centered_placeholder_text_edit(
+                        ui,
+                        [input_width, PATH_CONTROL_HEIGHT],
+                        &mut state.project_dir,
+                        tr(
+                            lang,
+                            "Project output directory...",
+                            "项目输出目录...",
+                            "專案輸出目錄...",
+                        ),
+                    );
+                    if ui
+                        .add_sized(
+                            [BROWSE_BTN_WIDTH, PATH_CONTROL_HEIGHT],
+                            egui::Button::new(tr(lang, "Browse", "浏览", "瀏覽")),
+                        )
+                        .clicked()
+                    {
+                        pick_dir(state);
+                    }
+                });
+
                 ui.add_space(SPACING);
 
                 ui.label(
-                    RichText::new("Outputs")
+                    RichText::new(tr(lang, "Outputs", "输出", "輸出"))
                         .size(12.0)
                         .color(colors::TEXT_SECONDARY),
                 );
@@ -369,15 +472,14 @@ impl App {
                         &mut state.output_source,
                         &mut state.output_vs2022,
                         &mut state.output_vs2026,
+                        &mut state.output_cmake,
                     );
                 });
 
                 ui.add_space(SPACING);
-                ui.separator();
-                ui.add_space(SPACING);
 
                 ui.label(
-                    RichText::new("Original DLL")
+                    RichText::new(tr(lang, "Original DLL", "原始 DLL", "原始 DLL"))
                         .size(12.0)
                         .color(colors::TEXT_SECONDARY),
                 );
@@ -385,25 +487,34 @@ impl App {
 
                 egui::ComboBox::from_id_source("origin_mode")
                     .selected_text(match state.origin_mode {
-                        OriginModeChoice::SystemDir => "System directory",
-                        OriginModeChoice::SameDir => "Same directory (renamed)",
-                        OriginModeChoice::CustomPath => "Custom path",
+                        OriginModeChoice::SystemDir => {
+                            tr(lang, "System directory", "系统目录", "系統目錄")
+                        }
+                        OriginModeChoice::SameDir => tr(
+                            lang,
+                            "Same directory (renamed)",
+                            "同目录（改名）",
+                            "同目錄（改名）",
+                        ),
+                        OriginModeChoice::CustomPath => {
+                            tr(lang, "Custom path", "自定义路径", "自訂路徑")
+                        }
                     })
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
                             &mut state.origin_mode,
                             OriginModeChoice::SystemDir,
-                            "System directory",
+                            tr(lang, "System directory", "系统目录", "系統目錄"),
                         );
                         ui.selectable_value(
                             &mut state.origin_mode,
                             OriginModeChoice::SameDir,
-                            "Same directory (renamed)",
+                            tr(lang, "Same directory (renamed)", "同目录（改名）", "同目錄（改名）"),
                         );
                         ui.selectable_value(
                             &mut state.origin_mode,
                             OriginModeChoice::CustomPath,
-                            "Custom path",
+                            tr(lang, "Custom path", "自定义路径", "自訂路徑"),
                         );
                     });
 
@@ -411,70 +522,48 @@ impl App {
                 match state.origin_mode {
                     OriginModeChoice::SystemDir => {}
                     OriginModeChoice::SameDir => {
-                        ui.add_sized(
-                            [ui.available_width(), CONTROL_HEIGHT],
-                            egui::TextEdit::singleline(&mut state.origin_same_dir_name).hint_text(
-                                RichText::new("e.g. foo_orig.dll")
-                                    .size(13.0)
-                                    .color(colors::TEXT_HINT),
-                            ),
+                        let w = ui.available_width();
+                        Self::centered_placeholder_text_edit(
+                            ui,
+                            [w, PATH_CONTROL_HEIGHT],
+                            &mut state.origin_same_dir_name,
+                            tr(lang, "e.g. foo_orig.dll", "例如 foo_orig.dll", "例如 foo_orig.dll"),
                         );
                     }
                     OriginModeChoice::CustomPath => {
-                        ui.add_sized(
-                            [ui.available_width(), CONTROL_HEIGHT],
-                            egui::TextEdit::singleline(&mut state.origin_custom_path).hint_text(
-                                RichText::new("e.g. C:\\\\path\\\\to\\\\foo.dll or foo_orig.dll")
-                                    .size(13.0)
-                                    .color(colors::TEXT_HINT),
+                        let w = ui.available_width();
+                        Self::centered_placeholder_text_edit(
+                            ui,
+                            [w, PATH_CONTROL_HEIGHT],
+                            &mut state.origin_custom_path,
+                            tr(
+                                lang,
+                                "e.g. C:\\\\path\\\\to\\\\foo.dll or foo_orig.dll",
+                                "例如 C:\\\\path\\\\to\\\\foo.dll 或 foo_orig.dll",
+                                "例如 C:\\\\path\\\\to\\\\foo.dll 或 foo_orig.dll",
                             ),
                         );
                     }
                 }
-
-                ui.label(
-                    RichText::new("Output Directory")
-                        .size(12.0)
-                        .color(colors::TEXT_SECONDARY),
-                );
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    ui.add_sized(
-                        [input_width, CONTROL_HEIGHT],
-                        egui::TextEdit::singleline(&mut state.project_dir).hint_text(
-                            RichText::new("Project output directory...")
-                                .size(13.0)
-                                .color(colors::TEXT_HINT),
-                        ),
-                    );
-                    if ui
-                        .add_sized(
-                            [BROWSE_BTN_WIDTH, CONTROL_HEIGHT],
-                            egui::Button::new("Browse"),
-                        )
-                        .clicked()
-                    {
-                        pick_dir(state);
-                    }
-                });
             });
     }
 
     fn right_panel(&mut self, ui: &mut egui::Ui, card_height: f32) {
         let state = &mut self.state;
+        let lang = state.ui_language;
 
         ui.horizontal(|ui| {
             ui.label(
-                RichText::new("Output Log")
+                RichText::new(tr(lang, "Output Log", "输出日志", "輸出日誌"))
                     .size(13.0)
                     .color(colors::TEXT_SECONDARY),
             );
             if let Some(ok) = state.success {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let (t, c) = if ok {
-                        ("Success", colors::SUCCESS)
+                        (tr(lang, "Success", "成功", "成功"), colors::SUCCESS)
                     } else {
-                        ("Failed", colors::ERROR)
+                        (tr(lang, "Failed", "失败", "失敗"), colors::ERROR)
                     };
                     ui.label(RichText::new(t).size(12.0).color(c));
                 });

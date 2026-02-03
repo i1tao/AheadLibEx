@@ -10,7 +10,7 @@ rfd = "0.14"
 goblin = { version = "0.8", default-features = false, features = ["pe64", "std"] }
 memmap2 = "0.9"
 uuid = { version = "1", features = ["v4", "fast-rng"] }
-windows-sys = { version = "0.52", features = ["Win32_System_Console", "Win32_Foundation"] }
+windows-sys = { version = "0.52", features = ["Win32_System_Console", "Win32_Foundation", "Win32_Globalization"] }
 
 [profile.release]
 opt-level = "z"

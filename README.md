@@ -1,42 +1,109 @@
 # AheadLibEx (Rust)
 
-Rust rewrite this project. It inspects a DLL’s export table and generates the proxy sources you need to build a hijack DLL, plus an optional ready-to-open Visual Studio project.
+AheadLibEx (Rust) is a Windows DLL proxy generator. It reads a target DLL, parses its export table, and generates a proxy DLL project that forwards exports to the original DLL.
 
-中文文档请见 [README.zh-CN.md](README.zh-CN.md)。
+中文文档请见 `README.zh-CN.md`.
 
-## Features
-- Parse PE export table, detect DLL architecture (x86/x64), and log export names/ordinals/forwarders.
-- Generate proxy sources: x86 emits C proxy; x64 emits C proxy + jump-table ASM; placeholders resolve cleanly for C/C++ builds.
-- Emit ready-to-build VS2022/VS2026 projects with configs/files trimmed to the DLL arch; single-select output (sources or VS project).
-- GUI with drag/drop DLL, directory picker, and read-only log; English UI/logs.
+## Outputs
+- `source`: proxy sources only
+- `vs2022`: Visual Studio 2022 solution and project
+- `vs2026`: Visual Studio 2026 solution and project
+- `cmake`: `CMakeLists.txt` for MSVC or MinGW-w64 builds
 
-## Original DLL Loading
-Generated proxy sources need to load the original DLL. This project supports multiple load modes so you can hijack both system DLLs and application-private DLLs.
+## What Gets Generated
+- Export forwarding code based on the input DLL’s export table (names, ordinals, and forwarders)
+- Proxy sources
+  - x86: C proxy source
+  - x64: C proxy source + jump table (MASM for MSVC-like toolchains, GAS for GNU-like toolchains)
+- A `.def` file for controlling exports when the build system uses it
+- Optional project files (Visual Studio or CMake), depending on the selected output
 
-- `system` (default): load from `%SystemRoot%\\System32\\<dll>` (current behavior).
-- `samedir`: load from the proxy DLL directory using a renamed filename (default name: `<stem>_orig.dll`).
-- `custom`: load from a custom path (absolute/UNC, or relative to the proxy DLL directory).
+## Project Structure
+- `domain`: DLL export parsing and core domain model
+- `application`: generation orchestration and UI event logic
+- `infrastructure`: templates and file generation
+- `presentation`: GUI
 
-CLI options:
+## Quick Start
+GUI:
+- Launch `aheadlibex-rs.exe` with no arguments, then select a DLL and output directory.
+
+CLI:
 
 ```text
---origin-mode <system|samedir|custom>
---origin-name <name.dll>     (for samedir)
---origin-path <path>         (for custom)
+aheadlibex-rs.exe <source|vs2022|vs2026|cmake> <dll_path> <output_dir> [--origin-mode <system|samedir|custom>] [--origin-name <name.dll>] [--origin-path <path>]
 ```
 
-## Refactor Timeline
+Examples (default `system` mode):
 
-- **2025-12-01**: Rebuilt the GUI layer in Rust with a fixed layout, unified theming, and decoupled event handling.
-- **2025-12-02 (Part 1)**: Flattened modules (ui_events, dll, gui), enforced English-only UI/logs, made the output log read-only, and optimized export log building (fewer clones/allocs).
-- **2025-12-02 (Part 2)**: Added templated VS2022 project/source generation (C/ASM + sln/vcxproj), grouped templates under `templates/`, and updated GUI to pick outputs via single-select checkboxes with auto-scroll logs.
-- **2025-12-03 (Part 1)**: Added VS2026 templates (slnx/vcxproj/filters/user) alongside shared C/ASM templates; GUI supports generating VS2026 projects;
-- **2025-12-03 (Part 2)**: Generation now follows DLL architecture: x86 only emits proxy C; x64 emits C + jump ASM; VS2022/VS2026 templates trim configs/files per arch, filters/platforms adjust, nested placeholders resolve correctly, and x86 trampolines use `AHEADLIB_EXTERN` for C++ builds.
-- **2025-12-04**: Exports macro now derives from the project name (sanitized upper-case with `_EXPORTS` suffix), replacing the hardcoded `DLLTEST_EXPORTS`; both VS2022/VS2026 vcxproj templates inject the project-specific macro for x86/x64 builds.
-- **2025-12-07**: CLI polished (`aheadlibex-rs.exe <source|vs2022|vs2026> <dll_path> <output_dir>` with `--help`), GUI auto-detaches console on launch, templates normalized to four-space indents, and VS naming updated: solution `AheadlibEx_<DLL name>`, project uses the DLL name, outputs follow the new naming.
-- **2025-12-08**: Restructured codebase into enterprise-style layers (`domain`, `application`, `infrastructure`, `presentation`) with public re-exports; template includes now use `CARGO_MANIFEST_DIR` to keep paths stable after refactors; CLI banner aligns with GUI branding.
-- **2026-02-01**: Fixed x64 generated `#pragma comment(linker, "/EXPORT:...")` quote escaping.
-- **2026-02-01**: GUI layout updated: `Project Settings` moved above `Output Log`, `Outputs` checkboxes use a horizontal wrapped layout, and the log area/window height were adjusted to keep the footer visible.
+```text
+aheadlibex-rs.exe source "C:\path\to\foo.dll" "C:\path\to\out"
+aheadlibex-rs.exe vs2022 "C:\path\to\foo.dll" "C:\path\to\out"
+aheadlibex-rs.exe vs2026 "C:\path\to\foo.dll" "C:\path\to\out"
+aheadlibex-rs.exe cmake  "C:\path\to\foo.dll" "C:\path\to\out"
+```
+
+## Original DLL Loading
+Generated proxy sources must load the original DLL. This project supports multiple load modes.
+
+- `system` (default): load from `%SystemRoot%\System32\<dll>`
+- `samedir`: load from the proxy DLL directory using a renamed filename (default name: `<stem>_orig.dll`)
+- `custom`: load from a custom path (absolute, UNC, or relative to the proxy DLL directory)
+
+Examples (custom load modes):
+
+```text
+aheadlibex-rs.exe vs2022 "C:\path\to\foo.dll" "C:\path\to\out" --origin-mode samedir --origin-name "foo_orig.dll"
+aheadlibex-rs.exe source "C:\path\to\foo.dll" "C:\path\to\out" --origin-mode custom --origin-path "\\server\share\foo.dll"
+```
+
+Option notes:
+- `--origin-name` is used by `--origin-mode samedir`
+- `--origin-path` is used by `--origin-mode custom`
+
+## Build Notes
+- Visual Studio outputs: open the generated solution and build.
+- CMake output: configure and build with your preferred generator. For example:
+
+```text
+cmake -S . -B build
+cmake --build build --config Release
+```
+
+## Generated Files
+The generated filenames are based on the input DLL stem (e.g. `version.dll` -> `version`).
+
+`source`:
+- x86: `<stem>_x86.c`, `<stem>_x86_jump.asm`, `<stem>_x86_jump.S`, `<stem>.def`
+- x64: `<stem>_x64.c`, `<stem>_x64_jump.asm`, `<stem>_x64_jump.S`, `<stem>.def`
+
+`cmake`:
+- `CMakeLists.txt`
+- Same files as `source` for the detected architecture.
+
+`vs2022`:
+- `AheadlibEx_<stem>.sln`
+- `<stem>.vcxproj`, `<stem>.vcxproj.filters`, `<stem>.vcxproj.user`
+- x86: `<stem>_x86.c`, `<stem>_x86_jump.asm`, `<stem>.def`
+- x64: `<stem>_x64.c`, `<stem>_x64_jump.asm`, `<stem>.def`
+
+`vs2026`:
+- `AheadlibEx_<stem>.slnx`
+- `<stem>.vcxproj`, `<stem>.vcxproj.filters`, `<stem>.vcxproj.user`
+- x86: `<stem>_x86.c`, `<stem>_x86_jump.asm`, `<stem>.def`
+- x64: `<stem>_x64.c`, `<stem>_x64_jump.asm`, `<stem>.def`
+
+Notes:
+- `.asm` is MASM (MSVC/clang-cl toolchains).
+- `.S` is GAS (GNU-like toolchains). Visual Studio outputs only include `.asm`.
+
+## Notes
+- Export list is generated from the input DLL’s export table.
+- xmake project generation has been removed (as of 2026-02-03).
+
+## Author
+- Author: i1tao
+- Repository: https://github.com/i1tao/aheadlibex
 
 ## Credits
 

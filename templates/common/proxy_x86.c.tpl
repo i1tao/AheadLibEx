@@ -5,6 +5,11 @@
 
 #include <windows.h>
 
+#ifdef UNREFERENCED_PARAMETER
+#undef UNREFERENCED_PARAMETER
+#endif
+#define UNREFERENCED_PARAMETER(P) (void)(P)
+
 {{EXPORT_PRAGMAS}}
 
 #ifdef __cplusplus

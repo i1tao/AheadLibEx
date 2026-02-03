@@ -94,9 +94,25 @@ const TPL_C_X64: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/templates/common/proxy_x64.c.tpl"
 ));
+const TPL_ASM_X86: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/common/proxy_x86_jump.asm.tpl"
+));
+const TPL_ASM_X86_GAS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/common/proxy_x86_jump.S.tpl"
+));
 const TPL_ASM_X64: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/templates/common/proxy_x64_jump.asm.tpl"
+));
+const TPL_ASM_X64_GAS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/common/proxy_x64_jump.S.tpl"
+));
+const TPL_CMAKE_LISTS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/cmake/CMakeLists.txt.tpl"
 ));
 const TPL_VCXPROJ_2026: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -266,7 +282,7 @@ fn render_load_origin_module(ctx: &VsTemplateContext) -> String {
     out
 }
 
-fn sanitize_identifier(raw: &str) -> String {
+pub fn sanitize_identifier(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
     for ch in raw.chars() {
         let valid = ch.is_ascii_alphanumeric() || ch == '_';
@@ -388,12 +404,17 @@ fn asm_item_group(base: &str, is_x64: bool) -> String {
     if is_x64 {
         format!(
             r#"  <ItemGroup>
-    <MASM Include="{base}_x64_jump.asm" />
-  </ItemGroup>
+     <MASM Include="{base}_x64_jump.asm" />
+   </ItemGroup>
 "#
         )
     } else {
-        String::new()
+        format!(
+            r#"  <ItemGroup>
+    <MASM Include="{base}_x86_jump.asm" />
+  </ItemGroup>
+"#
+        )
     }
 }
 
@@ -553,15 +574,27 @@ fn extension_settings(is_x64: bool) -> String {
     if is_x64 {
         "    <Import Project=\"$(VCTargetsPath)\\BuildCustomizations\\masm.props\" />\n".to_string()
     } else {
-        String::new()
+        "    <Import Project=\"$(VCTargetsPath)\\BuildCustomizations\\masm.props\" />\n".to_string()
     }
+}
+
+fn sanitize_build_target_name(raw: &str) -> String {
+    let mut out = sanitize_identifier(raw);
+    if out
+        .chars()
+        .next()
+        .map_or(true, |c| !(c.is_ascii_alphabetic() || c == '_'))
+    {
+        out = format!("AheadLibEx_{out}");
+    }
+    out
 }
 
 fn extension_targets(is_x64: bool) -> String {
     if is_x64 {
         "    <Import Project=\"$(VCTargetsPath)\\BuildCustomizations\\masm.targets\" />\n".to_string()
     } else {
-        String::new()
+        "    <Import Project=\"$(VCTargetsPath)\\BuildCustomizations\\masm.targets\" />\n".to_string()
     }
 }
 
@@ -569,24 +602,29 @@ fn filter_itemgroups(base: &str, is_x64: bool) -> String {
     if is_x64 {
         format!(
             r#"  <ItemGroup>
-    <ClCompile Include="{base}_x64.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="{base}_x64_jump.asm">
-      <Filter>Source Files</Filter>
-    </MASM>
-  </ItemGroup>
+     <ClCompile Include="{base}_x64.c">
+       <Filter>Source Files</Filter>
+     </ClCompile>
+   </ItemGroup>
+   <ItemGroup>
+     <MASM Include="{base}_x64_jump.asm">
+       <Filter>Source Files</Filter>
+     </MASM>
+   </ItemGroup>
 "#
         )
     } else {
         format!(
             r#"  <ItemGroup>
-    <ClCompile Include="{base}_x86.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
+     <ClCompile Include="{base}_x86.c">
+       <Filter>Source Files</Filter>
+     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <MASM Include="{base}_x86_jump.asm">
+      <Filter>Source Files</Filter>
+    </MASM>
+   </ItemGroup>
 "#
         )
     }
@@ -726,22 +764,18 @@ pub fn render_c(ctx: &VsTemplateContext) -> String {
     }
 
     let mut forward_decls = String::new();
+    forward_decls.push_str("#ifdef __cplusplus\nextern \"C\" {\n#endif\n");
     for exp in &exports {
         let _ = writeln!(
             forward_decls,
-            "AHEADLIB_EXTERN PVOID pfnAheadLibEx_{};",
+            "PVOID pfnAheadLibEx_{} = NULL;",
             exp.stub
         );
     }
+    forward_decls.push_str("#ifdef __cplusplus\n}\n#endif\n");
 
-    let mut trampolines = String::new();
-    for exp in &exports {
-        let _ = writeln!(
-            trampolines,
-            "__declspec(naked) AHEADLIB_EXTERN void __cdecl AheadLibEx_{name}(void) {{ __asm {{ jmp dword ptr [pfnAheadLibEx_{name}] }} }}",
-            name = exp.stub
-        );
-    }
+    let trampolines = String::new();
+    // x86 uses a separate jump table assembly file for toolchain compatibility.
 
     let mut init_forwarders = String::new();
     for exp in &exports {
@@ -792,13 +826,15 @@ pub fn render_c_x64(ctx: &VsTemplateContext) -> String {
     }
 
     let mut forward_decls = String::new();
+    forward_decls.push_str("#ifdef __cplusplus\nextern \"C\" {\n#endif\n");
     for exp in &exports {
         let _ = writeln!(
             forward_decls,
-            "AHEADLIB_EXTERN PVOID pfnAheadLibEx_{};",
+            "PVOID pfnAheadLibEx_{} = NULL;",
             exp.stub
         );
     }
+    forward_decls.push_str("#ifdef __cplusplus\n}\n#endif\n");
 
     let mut init_forwarders = String::new();
     for exp in &exports {
@@ -849,5 +885,144 @@ pub fn render_asm_x64(ctx: &VsTemplateContext) -> String {
     fill(
         TPL_ASM_X64,
         &[("ASM_EXTERNS", externs), ("ASM_JUMPS", jumps)],
+    )
+}
+
+pub fn render_asm_x86(ctx: &VsTemplateContext) -> String {
+    let exports = prepare_exports(ctx.exports);
+
+    let mut jumps = String::new();
+    for exp in &exports {
+        let _ = writeln!(jumps, "EXTERN _pfnAheadLibEx_{name}:DWORD", name = exp.stub);
+        let _ = writeln!(jumps, "PUBLIC AheadLibEx_{name}", name = exp.stub);
+        let _ = writeln!(jumps, "PUBLIC _AheadLibEx_{name}", name = exp.stub);
+        let _ = writeln!(jumps, "AheadLibEx_{name}:", name = exp.stub);
+        let _ = writeln!(jumps, "_AheadLibEx_{name}:", name = exp.stub);
+        let _ = writeln!(
+            jumps,
+            "    jmp DWORD PTR [_pfnAheadLibEx_{name}]",
+            name = exp.stub
+        );
+        jumps.push('\n');
+    }
+
+    fill(TPL_ASM_X86, &[("ASM_JUMPS", jumps)])
+}
+
+pub fn render_asm_x86_gas(ctx: &VsTemplateContext) -> String {
+    let exports = prepare_exports(ctx.exports);
+
+    let mut externs = String::new();
+    for exp in &exports {
+        let _ = writeln!(externs, "    .extern _pfnAheadLibEx_{}", exp.stub);
+    }
+
+    let mut jumps = String::new();
+    for exp in &exports {
+        let _ = writeln!(jumps, "    .globl AheadLibEx_{}", exp.stub);
+        let _ = writeln!(jumps, "    .globl _AheadLibEx_{}", exp.stub);
+        let _ = writeln!(jumps, "AheadLibEx_{}:", exp.stub);
+        let _ = writeln!(jumps, "_AheadLibEx_{}:", exp.stub);
+        let _ = writeln!(jumps, "    jmp DWORD PTR [_pfnAheadLibEx_{}]\n", exp.stub);
+    }
+
+    fill(
+        TPL_ASM_X86_GAS,
+        &[("ASM_EXTERNS", externs), ("ASM_JUMPS", jumps)],
+    )
+}
+
+pub fn render_asm_x64_gas(ctx: &VsTemplateContext) -> String {
+    let exports = prepare_exports(ctx.exports);
+
+    let mut externs = String::new();
+    for exp in &exports {
+        let _ = writeln!(externs, "    .extern pfnAheadLibEx_{}", exp.stub);
+    }
+
+    let mut jumps = String::new();
+    for exp in &exports {
+        let _ = writeln!(
+            jumps,
+            "    .globl AheadLibEx_{name}\nAheadLibEx_{name}:\n    jmp QWORD PTR [rip + pfnAheadLibEx_{name}]\n",
+            name = exp.stub
+        );
+    }
+
+    fill(
+        TPL_ASM_X64_GAS,
+        &[("ASM_EXTERNS", externs), ("ASM_JUMPS", jumps)],
+    )
+}
+
+pub fn render_def(ctx: &VsTemplateContext, is_x64: bool) -> String {
+    let exports = prepare_exports(ctx.exports);
+
+    fn needs_quotes(name: &str) -> bool {
+        name.chars().any(|c| !(c.is_ascii_alphanumeric() || c == '_' || c == '.'))
+    }
+
+    fn quote_if_needed(name: &str) -> String {
+        if needs_quotes(name) {
+            format!("\"{name}\"")
+        } else {
+            name.to_string()
+        }
+    }
+
+    let mut out = String::new();
+    let _ = writeln!(out, "LIBRARY \"{}\"", ctx.dll_name);
+    let _ = writeln!(out, "EXPORTS");
+
+    for exp in &exports {
+        let export_name = quote_if_needed(&exp.label);
+        let internal = if is_x64 {
+            format!("AheadLibEx_{}", exp.stub)
+        } else {
+            format!("_AheadLibEx_{}", exp.stub)
+        };
+        let noname = if exp.label.starts_with("Noname") {
+            " NONAME"
+        } else {
+            ""
+        };
+        let _ = writeln!(
+            out,
+            "    {}={} @{}{}",
+            export_name, internal, exp.ordinal, noname
+        );
+    }
+
+    out
+}
+
+pub fn render_cmake_lists(ctx: &VsTemplateContext, is_x64: bool) -> String {
+    let cmake_project_name = sanitize_build_target_name(&format!("AheadLibEx_{}", ctx.base_name));
+
+    let (c_src, asm_masm, asm_gas) = if is_x64 {
+        (
+            format!("{}_x64.c", ctx.base_name),
+            format!("{}_x64_jump.asm", ctx.base_name),
+            format!("{}_x64_jump.S", ctx.base_name),
+        )
+    } else {
+        (
+            format!("{}_x86.c", ctx.base_name),
+            format!("{}_x86_jump.asm", ctx.base_name),
+            format!("{}_x86_jump.S", ctx.base_name),
+        )
+    };
+
+    fill(
+        TPL_CMAKE_LISTS,
+        &[
+            ("CMAKE_PROJECT_NAME", cmake_project_name),
+            ("BASE", ctx.base_name.to_string()),
+            ("OUTPUT_NAME", ctx.base_name.to_string()),
+            ("C_SRC", c_src),
+            ("ASM_MASM_SRC", asm_masm),
+            ("ASM_GAS_SRC", asm_gas),
+            ("DEF_SRC", format!("{}.def", ctx.base_name)),
+        ],
     )
 }

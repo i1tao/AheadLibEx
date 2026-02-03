@@ -2,9 +2,10 @@ use std::{env, path::Path};
 
 use crate::dll;
 use crate::templates::{
-    render_asm_x64, render_c, render_c_x64, render_filters, render_filters_2026, render_solution,
-    render_slnx_2026, render_user, render_user_2026, render_vcxproj, render_vcxproj_2026, VsGuids,
-    OriginLoadMode, OriginLoadModeOwned, VsTemplateContext,
+    render_asm_x64, render_asm_x64_gas, render_asm_x86, render_asm_x86_gas, render_c, render_c_x64,
+    render_cmake_lists, render_def, render_filters, render_filters_2026, render_solution,
+    render_slnx_2026, render_user, render_user_2026, render_vcxproj, render_vcxproj_2026,
+    OriginLoadMode, OriginLoadModeOwned, VsGuids, VsTemplateContext,
 };
 use eframe::egui;
 use rfd;
@@ -19,6 +20,7 @@ pub enum OutputTarget {
     Source,
     Vs2022,
     Vs2026,
+    CMake,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -28,12 +30,31 @@ pub enum OriginModeChoice {
     CustomPath,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum UiLanguageChoice {
+    English,
+    ZhHans,
+    ZhHant,
+}
+
+impl UiLanguageChoice {
+    pub const fn display_name(self) -> &'static str {
+        match self {
+            Self::English => "English",
+            Self::ZhHans => "简体中文",
+            Self::ZhHant => "繁體中文",
+        }
+    }
+}
+
 pub struct UiState {
     pub dll_path: String,
     pub project_dir: String,
     pub output_source: bool,
     pub output_vs2022: bool,
     pub output_vs2026: bool,
+    pub output_cmake: bool,
+    pub ui_language: UiLanguageChoice,
     pub origin_mode: OriginModeChoice,
     pub origin_same_dir_name: String,
     pub origin_custom_path: String,
@@ -50,6 +71,8 @@ impl UiState {
             output_source: false,
             output_vs2022: false,
             output_vs2026: false,
+            output_cmake: false,
+            ui_language: detect_default_ui_language(),
             origin_mode: OriginModeChoice::SystemDir,
             origin_same_dir_name: String::new(),
             origin_custom_path: String::new(),
@@ -64,6 +87,34 @@ impl Default for UiState {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn detect_default_ui_language() -> UiLanguageChoice {
+    #[cfg(target_os = "windows")]
+    {
+        use windows_sys::Win32::Globalization::GetUserDefaultUILanguage;
+        let lang_id = unsafe { GetUserDefaultUILanguage() } as u16;
+        // https://learn.microsoft.com/windows/win32/intl/language-identifiers
+        // LANGID: primary language id is low 10 bits; sublanguage id is high 6 bits.
+        let primary = lang_id & 0x03ff;
+        let sub = lang_id >> 10;
+
+        // LANG_CHINESE = 0x04
+        if primary == 0x04 {
+            // SUBLANG_CHINESE_TRADITIONAL = 0x01
+            // SUBLANG_CHINESE_SIMPLIFIED = 0x02
+            // SUBLANG_CHINESE_HONGKONG   = 0x03
+            // SUBLANG_CHINESE_SINGAPORE  = 0x04
+            // SUBLANG_CHINESE_MACAU      = 0x05
+            return match sub {
+                0x01 | 0x03 | 0x05 => UiLanguageChoice::ZhHant,
+                0x02 | 0x04 => UiLanguageChoice::ZhHans,
+                _ => UiLanguageChoice::ZhHans,
+            };
+        }
+    }
+
+    UiLanguageChoice::English
 }
 
 fn default_log() -> String {
@@ -106,15 +157,21 @@ pub fn generate(state: &mut UiState) {
     state.success = None;
     state.log = "Generating project...".into();
 
-    if !state.output_source && !state.output_vs2022 && !state.output_vs2026 {
-        state.log = "Please select at least one output target (Source/VS2022/VS2026)".into();
+    if !state.output_source
+        && !state.output_vs2022
+        && !state.output_vs2026
+        && !state.output_cmake
+    {
+        state.log = "Please select at least one output target (Source/VS2022/VS2026/CMake)".into();
         state.success = Some(false);
         return;
     }
 
     // enforce single selection
-    let selected_count =
-        state.output_source as u8 + state.output_vs2022 as u8 + state.output_vs2026 as u8;
+    let selected_count = state.output_source as u8
+        + state.output_vs2022 as u8
+        + state.output_vs2026 as u8
+        + state.output_cmake as u8;
     if selected_count > 1 {
         state.log = "Please select only one output target".into();
         state.success = Some(false);
@@ -224,6 +281,26 @@ pub fn generate(state: &mut UiState) {
                     }
                 }
             }
+
+            if state.output_cmake {
+                match write_cmake_project(
+                    dll_path,
+                    Path::new(state.project_dir.trim()),
+                    is_x64,
+                    origin,
+                    &exports_for_write,
+                ) {
+                    Ok(_) => state
+                        .log
+                        .push_str("\n-- CMake project written successfully --"),
+                    Err(err) => {
+                        state
+                            .log
+                            .push_str(&format!("\n-- CMake project write failed --\n{err}"));
+                        state.success = Some(false);
+                    }
+                }
+            }
         }
         Err(err) => {
             state.log = format!("Failed to parse DLL: {err}");
@@ -252,6 +329,7 @@ pub fn generate_cli(
         OutputTarget::Source => write_source_files(dll_path, output_dir, is_x64, origin, &exports),
         OutputTarget::Vs2022 => write_vs2022_project(dll_path, output_dir, is_x64, origin, &exports),
         OutputTarget::Vs2026 => write_vs2026_project(dll_path, output_dir, is_x64, origin, &exports),
+        OutputTarget::CMake => write_cmake_project(dll_path, output_dir, is_x64, origin, &exports),
     }
 }
 
@@ -261,6 +339,7 @@ pub fn reset(state: &mut UiState) {
     state.output_source = false;
     state.output_vs2022 = false;
     state.output_vs2026 = false;
+    state.output_cmake = false;
     state.origin_mode = OriginModeChoice::SystemDir;
     state.origin_same_dir_name.clear();
     state.origin_custom_path.clear();
@@ -361,6 +440,9 @@ fn selected_targets(state: &UiState) -> Vec<String> {
     if state.output_vs2026 {
         v.push("VS2026".to_string());
     }
+    if state.output_cmake {
+        v.push("CMake".to_string());
+    }
     v
 }
 
@@ -412,11 +494,19 @@ fn write_source_files(
     } else {
         None
     };
-    let asm_src_x64 = if is_x64 {
-        Some(render_asm_x64(&ctx))
+    let asm_src_x86 = if is_x64 { None } else { Some(render_asm_x86(&ctx)) };
+    let asm_src_x86_gas = if is_x64 {
+        None
+    } else {
+        Some(render_asm_x86_gas(&ctx))
+    };
+    let asm_src_x64 = if is_x64 { Some(render_asm_x64(&ctx)) } else { None };
+    let asm_src_x64_gas = if is_x64 {
+        Some(render_asm_x64_gas(&ctx))
     } else {
         None
     };
+    let def_src = render_def(&ctx, is_x64);
 
     fs::create_dir_all(output_dir)?;
 
@@ -434,9 +524,118 @@ fn write_source_files(
     if let Some(content) = c_src_x64 {
         write_file(&format!("{}_x64.c", base_name), &content)?;
     }
+    if let Some(content) = asm_src_x86 {
+        write_file(&format!("{}_x86_jump.asm", base_name), &content)?;
+    }
+    if let Some(content) = asm_src_x86_gas {
+        write_file(&format!("{}_x86_jump.S", base_name), &content)?;
+    }
     if let Some(content) = asm_src_x64 {
         write_file(&format!("{}_x64_jump.asm", base_name), &content)?;
     }
+    if let Some(content) = asm_src_x64_gas {
+        write_file(&format!("{}_x64_jump.S", base_name), &content)?;
+    }
+    write_file(&format!("{}.def", base_name), &def_src)?;
+
+    Ok(written)
+}
+
+fn write_cmake_project(
+    dll_path: &Path,
+    output_dir: &Path,
+    is_x64: bool,
+    origin_load_mode: OriginLoadMode<'_>,
+    exports: &[dll::ExportEntry],
+) -> anyhow::Result<Vec<String>> {
+    let dll_stem = dll_path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("Invalid DLL filename"))?;
+    let dll_name = dll_path
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| format!("{dll_stem}.dll"));
+
+    let base_name = dll_stem;
+
+    let guid_solution = new_guid_braced();
+    let guid_project = new_guid_braced();
+    let guid_source = new_guid_braced();
+    let guid_header = new_guid_braced();
+    let guid_resource = new_guid_braced();
+
+    let guids = VsGuids {
+        solution: &guid_solution,
+        project: &guid_project,
+        filter_source: &guid_source,
+        filter_header: &guid_header,
+        filter_resource: &guid_resource,
+    };
+
+    let ctx = VsTemplateContext {
+        project_name: &base_name,
+        dll_name: &dll_name,
+        base_name: &base_name,
+        origin_load_mode,
+        exports,
+        guids,
+    };
+
+    let cmake_lists = render_cmake_lists(&ctx, is_x64);
+
+    let c_src_x86 = if is_x64 { None } else { Some(render_c(&ctx)) };
+    let c_src_x64 = if is_x64 {
+        Some(render_c_x64(&ctx))
+    } else {
+        None
+    };
+    let asm_src_x86 = if is_x64 { None } else { Some(render_asm_x86(&ctx)) };
+    let asm_src_x86_gas = if is_x64 {
+        None
+    } else {
+        Some(render_asm_x86_gas(&ctx))
+    };
+    let asm_src_x64 = if is_x64 { Some(render_asm_x64(&ctx)) } else { None };
+    let asm_src_x64_gas = if is_x64 {
+        Some(render_asm_x64_gas(&ctx))
+    } else {
+        None
+    };
+    let def_src = render_def(&ctx, is_x64);
+
+    fs::create_dir_all(output_dir)?;
+
+    let mut written = Vec::new();
+    let mut write_file = |name: &str, content: &str| -> anyhow::Result<()> {
+        let path = output_dir.join(name);
+        fs::write(&path, content)?;
+        written.push(path.display().to_string());
+        Ok(())
+    };
+
+    write_file("CMakeLists.txt", &cmake_lists)?;
+
+    if let Some(content) = c_src_x86 {
+        write_file(&format!("{}_x86.c", base_name), &content)?;
+    }
+    if let Some(content) = c_src_x64 {
+        write_file(&format!("{}_x64.c", base_name), &content)?;
+    }
+    if let Some(content) = asm_src_x86 {
+        write_file(&format!("{}_x86_jump.asm", base_name), &content)?;
+    }
+    if let Some(content) = asm_src_x86_gas {
+        write_file(&format!("{}_x86_jump.S", base_name), &content)?;
+    }
+    if let Some(content) = asm_src_x64 {
+        write_file(&format!("{}_x64_jump.asm", base_name), &content)?;
+    }
+    if let Some(content) = asm_src_x64_gas {
+        write_file(&format!("{}_x64_jump.S", base_name), &content)?;
+    }
+    write_file(&format!("{}.def", base_name), &def_src)?;
 
     Ok(written)
 }
@@ -495,11 +694,13 @@ fn write_vs2022_project(
     } else {
         None
     };
+    let asm_src_x86 = if is_x64 { None } else { Some(render_asm_x86(&ctx)) };
     let asm_src_x64 = if is_x64 {
         Some(render_asm_x64(&ctx))
     } else {
         None
     };
+    let def_src = render_def(&ctx, is_x64);
 
     fs::create_dir_all(output_dir)?;
 
@@ -521,9 +722,13 @@ fn write_vs2022_project(
     if let Some(content) = c_src_x64 {
         write_file(&format!("{}_x64.c", base_name), &content)?;
     }
+    if let Some(content) = asm_src_x86 {
+        write_file(&format!("{}_x86_jump.asm", base_name), &content)?;
+    }
     if let Some(content) = asm_src_x64 {
         write_file(&format!("{}_x64_jump.asm", base_name), &content)?;
     }
+    write_file(&format!("{}.def", base_name), &def_src)?;
 
     Ok(written)
 }
@@ -582,11 +787,13 @@ fn write_vs2026_project(
     } else {
         None
     };
+    let asm_src_x86 = if is_x64 { None } else { Some(render_asm_x86(&ctx)) };
     let asm_src_x64 = if is_x64 {
         Some(render_asm_x64(&ctx))
     } else {
         None
     };
+    let def_src = render_def(&ctx, is_x64);
 
     fs::create_dir_all(output_dir)?;
 
@@ -608,9 +815,13 @@ fn write_vs2026_project(
     if let Some(content) = c_src_x64 {
         write_file(&format!("{}_x64.c", base_name), &content)?;
     }
+    if let Some(content) = asm_src_x86 {
+        write_file(&format!("{}_x86_jump.asm", base_name), &content)?;
+    }
     if let Some(content) = asm_src_x64 {
         write_file(&format!("{}_x64_jump.asm", base_name), &content)?;
     }
+    write_file(&format!("{}.def", base_name), &def_src)?;
 
     Ok(written)
 }

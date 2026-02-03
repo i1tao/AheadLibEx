@@ -12,11 +12,12 @@ use windows_sys::Win32::System::Console::{
 
 fn print_usage() {
     println!("AheadLibEx usage:");
-    println!("  aheadlibex-rs.exe <source|vs2022|vs2026> <dll_path> <output_dir> [options]");
+    println!("  aheadlibex-rs.exe <source|vs2022|vs2026|cmake> <dll_path> <output_dir> [options]");
     println!("Examples:");
     println!("  aheadlibex-rs.exe source  \"C:\\\\path\\\\to\\\\foo.dll\" \"C:\\\\path\\\\to\\\\out\"");
     println!("  aheadlibex-rs.exe vs2022 \"C:\\\\path\\\\to\\\\foo.dll\" \"C:\\\\path\\\\to\\\\out\"");
     println!("  aheadlibex-rs.exe vs2026 \"C:\\\\path\\\\to\\\\foo.dll\" \"C:\\\\path\\\\to\\\\out\"");
+    println!("  aheadlibex-rs.exe cmake  \"C:\\\\path\\\\to\\\\foo.dll\" \"C:\\\\path\\\\to\\\\out\"");
     println!("Options:");
     println!("  --origin-mode <system|samedir|custom>   Where to load the original DLL (default: system).");
     println!("  --origin-name <name.dll>               Used when --origin-mode samedir (default: <stem>_orig.dll).");
@@ -74,14 +75,18 @@ fn main() -> Result<()> {
     }
 
     if args.len() < 3 {
-        bail!("Usage: AheadLibEx <source|vs2022|vs2026> <dll_path> <output_dir> [options]");
+        bail!("Usage: AheadLibEx <source|vs2022|vs2026|cmake> <dll_path> <output_dir> [options]");
     }
 
     let target = match args[0].to_ascii_lowercase().as_str() {
         "source" | "src" | "c" => OutputTarget::Source,
         "vs2022" | "2022" => OutputTarget::Vs2022,
         "vs2026" | "2026" => OutputTarget::Vs2026,
-        other => bail!("Unknown target '{}'. Use source|vs2022|vs2026.", other),
+        "cmake" | "cml" => OutputTarget::CMake,
+        other => bail!(
+            "Unknown target '{}'. Use source|vs2022|vs2026|cmake.",
+            other
+        ),
     };
 
     let dll_path = PathBuf::from(&args[1]);
