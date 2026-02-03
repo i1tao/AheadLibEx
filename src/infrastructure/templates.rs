@@ -5,6 +5,44 @@ use std::collections::HashSet;
 use std::fmt::Write;
 
 #[derive(Clone, Debug)]
+pub enum OriginLoadModeOwned {
+    SystemDir,
+    SameDir { original_name: String },
+    CustomPath { path: String },
+}
+
+impl OriginLoadModeOwned {
+    pub fn system_dir() -> Self {
+        Self::SystemDir
+    }
+
+    pub fn same_dir(original_name: String) -> Self {
+        Self::SameDir { original_name }
+    }
+
+    pub fn custom_path(path: String) -> Self {
+        Self::CustomPath { path }
+    }
+
+    pub fn as_borrowed(&self) -> OriginLoadMode<'_> {
+        match self {
+            Self::SystemDir => OriginLoadMode::SystemDir,
+            Self::SameDir { original_name } => OriginLoadMode::SameDir {
+                original_name: original_name.as_str(),
+            },
+            Self::CustomPath { path } => OriginLoadMode::CustomPath { path: path.as_str() },
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum OriginLoadMode<'a> {
+    SystemDir,
+    SameDir { original_name: &'a str },
+    CustomPath { path: &'a str },
+}
+
+#[derive(Clone, Debug)]
 pub struct VsGuids<'a> {
     pub solution: &'a str,
     pub project: &'a str,
@@ -18,6 +56,7 @@ pub struct VsTemplateContext<'a> {
     pub project_name: &'a str,
     pub dll_name: &'a str,
     pub base_name: &'a str,
+    pub origin_load_mode: OriginLoadMode<'a>,
     pub exports: &'a [ExportEntry],
     pub guids: VsGuids<'a>,
 }
@@ -55,9 +94,25 @@ const TPL_C_X64: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/templates/common/proxy_x64.c.tpl"
 ));
+const TPL_ASM_X86: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/common/proxy_x86_jump.asm.tpl"
+));
+const TPL_ASM_X86_GAS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/common/proxy_x86_jump.S.tpl"
+));
 const TPL_ASM_X64: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/templates/common/proxy_x64_jump.asm.tpl"
+));
+const TPL_ASM_X64_GAS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/common/proxy_x64_jump.S.tpl"
+));
+const TPL_CMAKE_LISTS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/templates/cmake/CMakeLists.txt.tpl"
 ));
 const TPL_VCXPROJ_2026: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -95,7 +150,139 @@ fn fill(template: &str, pairs: &[(&str, String)]) -> String {
     out
 }
 
-fn sanitize_identifier(raw: &str) -> String {
+fn escape_c_text_literal(s: &str) -> String {
+    // For embedding inside TEXT("...") / L"..."
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\r' => {}
+            '\n' => out.push_str("\\n"),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+fn render_load_origin_module(ctx: &VsTemplateContext) -> String {
+    let mut out = String::new();
+    match ctx.origin_load_mode {
+        OriginLoadMode::SystemDir => {
+            let dll = escape_c_text_literal(ctx.dll_name);
+            let _ = writeln!(out, "    TCHAR module_path[MAX_PATH] = {{ 0 }};");
+            let _ = writeln!(out, "    TCHAR message[MAX_PATH] = {{ 0 }};");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    UNREFERENCED_PARAMETER(module);");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    GetSystemDirectory(module_path, MAX_PATH);");
+            let _ = writeln!(out, "    lstrcat(module_path, TEXT(\"\\\\\"));");
+            let _ = writeln!(out, "    lstrcat(module_path, TEXT(\"{}\"));", dll);
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    g_origin_module_handle = LoadLibrary(module_path);");
+            let _ = writeln!(out, "    if (!g_origin_module_handle)");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        wsprintf(message, TEXT(\"Cannot locate %s, AheadLibEx cannot continue.\\\\nerror code:0x%08X\"), module_path, GetLastError());");
+            let _ = writeln!(out, "        MessageBox(NULL, message, TEXT(\"AheadLibEx\"), MB_ICONSTOP);");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    return g_origin_module_handle != NULL;");
+        }
+        OriginLoadMode::SameDir { original_name } => {
+            let original = escape_c_text_literal(original_name);
+            let _ = writeln!(out, "    TCHAR module_path[MAX_PATH] = {{ 0 }};");
+            let _ = writeln!(out, "    TCHAR message[MAX_PATH] = {{ 0 }};");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    DWORD n = GetModuleFileName(module, module_path, MAX_PATH);");
+            let _ = writeln!(out, "    if (n == 0 || n >= MAX_PATH)");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        wsprintf(message, TEXT(\"GetModuleFileName failed, AheadLibEx cannot continue.\\\\nerror code:0x%08X\"), GetLastError());");
+            let _ = writeln!(out, "        MessageBox(NULL, message, TEXT(\"AheadLibEx\"), MB_ICONSTOP);");
+            let _ = writeln!(out, "        return FALSE;");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    TCHAR* last = NULL;");
+            let _ = writeln!(out, "    for (TCHAR* p = module_path; *p; ++p)");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        if (*p == TEXT('\\\\') || *p == TEXT('/'))");
+            let _ = writeln!(out, "        {{");
+            let _ = writeln!(out, "            last = p;");
+            let _ = writeln!(out, "        }}");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "    if (last)");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        *(last + 1) = TEXT('\\0');");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "    else");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        module_path[0] = TEXT('\\0');");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    lstrcat(module_path, TEXT(\"{}\"));", original);
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    g_origin_module_handle = LoadLibrary(module_path);");
+            let _ = writeln!(out, "    if (!g_origin_module_handle)");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        wsprintf(message, TEXT(\"Cannot locate %s, AheadLibEx cannot continue.\\\\nerror code:0x%08X\"), module_path, GetLastError());");
+            let _ = writeln!(out, "        MessageBox(NULL, message, TEXT(\"AheadLibEx\"), MB_ICONSTOP);");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    return g_origin_module_handle != NULL;");
+        }
+        OriginLoadMode::CustomPath { path } => {
+            let origin_cfg = escape_c_text_literal(path);
+            let _ = writeln!(out, "    TCHAR module_path[MAX_PATH] = {{ 0 }};");
+            let _ = writeln!(out, "    TCHAR message[MAX_PATH] = {{ 0 }};");
+            let _ = writeln!(out, "    const TCHAR origin_cfg[] = TEXT(\"{}\");", origin_cfg);
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    if ((origin_cfg[0] && origin_cfg[1] == TEXT(':')) || origin_cfg[0] == TEXT('\\\\') || origin_cfg[0] == TEXT('/'))");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        lstrcpyn(module_path, origin_cfg, MAX_PATH);");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "    else");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        DWORD n = GetModuleFileName(module, module_path, MAX_PATH);");
+            let _ = writeln!(out, "        if (n == 0 || n >= MAX_PATH)");
+            let _ = writeln!(out, "        {{");
+            let _ = writeln!(out, "            wsprintf(message, TEXT(\"GetModuleFileName failed, AheadLibEx cannot continue.\\\\nerror code:0x%08X\"), GetLastError());");
+            let _ = writeln!(out, "            MessageBox(NULL, message, TEXT(\"AheadLibEx\"), MB_ICONSTOP);");
+            let _ = writeln!(out, "            return FALSE;");
+            let _ = writeln!(out, "        }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "        TCHAR* last = NULL;");
+            let _ = writeln!(out, "        for (TCHAR* p = module_path; *p; ++p)");
+            let _ = writeln!(out, "        {{");
+            let _ = writeln!(out, "            if (*p == TEXT('\\\\') || *p == TEXT('/'))");
+            let _ = writeln!(out, "            {{");
+            let _ = writeln!(out, "                last = p;");
+            let _ = writeln!(out, "            }}");
+            let _ = writeln!(out, "        }}");
+            let _ = writeln!(out, "        if (last)");
+            let _ = writeln!(out, "        {{");
+            let _ = writeln!(out, "            *(last + 1) = TEXT('\\0');");
+            let _ = writeln!(out, "        }}");
+            let _ = writeln!(out, "        else");
+            let _ = writeln!(out, "        {{");
+            let _ = writeln!(out, "            module_path[0] = TEXT('\\0');");
+            let _ = writeln!(out, "        }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "        lstrcat(module_path, origin_cfg);");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    g_origin_module_handle = LoadLibrary(module_path);");
+            let _ = writeln!(out, "    if (!g_origin_module_handle)");
+            let _ = writeln!(out, "    {{");
+            let _ = writeln!(out, "        wsprintf(message, TEXT(\"Cannot locate %s, AheadLibEx cannot continue.\\\\nerror code:0x%08X\"), module_path, GetLastError());");
+            let _ = writeln!(out, "        MessageBox(NULL, message, TEXT(\"AheadLibEx\"), MB_ICONSTOP);");
+            let _ = writeln!(out, "    }}");
+            let _ = writeln!(out, "");
+            let _ = writeln!(out, "    return g_origin_module_handle != NULL;");
+        }
+    }
+    out
+}
+
+pub fn sanitize_identifier(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
     for ch in raw.chars() {
         let valid = ch.is_ascii_alphanumeric() || ch == '_';
@@ -217,12 +404,17 @@ fn asm_item_group(base: &str, is_x64: bool) -> String {
     if is_x64 {
         format!(
             r#"  <ItemGroup>
-    <MASM Include="{base}_x64_jump.asm" />
-  </ItemGroup>
+     <MASM Include="{base}_x64_jump.asm" />
+   </ItemGroup>
 "#
         )
     } else {
-        String::new()
+        format!(
+            r#"  <ItemGroup>
+    <MASM Include="{base}_x86_jump.asm" />
+  </ItemGroup>
+"#
+        )
     }
 }
 
@@ -382,15 +574,27 @@ fn extension_settings(is_x64: bool) -> String {
     if is_x64 {
         "    <Import Project=\"$(VCTargetsPath)\\BuildCustomizations\\masm.props\" />\n".to_string()
     } else {
-        String::new()
+        "    <Import Project=\"$(VCTargetsPath)\\BuildCustomizations\\masm.props\" />\n".to_string()
     }
+}
+
+fn sanitize_build_target_name(raw: &str) -> String {
+    let mut out = sanitize_identifier(raw);
+    if out
+        .chars()
+        .next()
+        .map_or(true, |c| !(c.is_ascii_alphabetic() || c == '_'))
+    {
+        out = format!("AheadLibEx_{out}");
+    }
+    out
 }
 
 fn extension_targets(is_x64: bool) -> String {
     if is_x64 {
         "    <Import Project=\"$(VCTargetsPath)\\BuildCustomizations\\masm.targets\" />\n".to_string()
     } else {
-        String::new()
+        "    <Import Project=\"$(VCTargetsPath)\\BuildCustomizations\\masm.targets\" />\n".to_string()
     }
 }
 
@@ -398,24 +602,29 @@ fn filter_itemgroups(base: &str, is_x64: bool) -> String {
     if is_x64 {
         format!(
             r#"  <ItemGroup>
-    <ClCompile Include="{base}_x64.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="{base}_x64_jump.asm">
-      <Filter>Source Files</Filter>
-    </MASM>
-  </ItemGroup>
+     <ClCompile Include="{base}_x64.c">
+       <Filter>Source Files</Filter>
+     </ClCompile>
+   </ItemGroup>
+   <ItemGroup>
+     <MASM Include="{base}_x64_jump.asm">
+       <Filter>Source Files</Filter>
+     </MASM>
+   </ItemGroup>
 "#
         )
     } else {
         format!(
             r#"  <ItemGroup>
-    <ClCompile Include="{base}_x86.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
+     <ClCompile Include="{base}_x86.c">
+       <Filter>Source Files</Filter>
+     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <MASM Include="{base}_x86_jump.asm">
+      <Filter>Source Files</Filter>
+    </MASM>
+   </ItemGroup>
 "#
         )
     }
@@ -540,31 +749,33 @@ pub fn render_c(ctx: &VsTemplateContext) -> String {
         } else {
             ""
         };
-        let entry = format!("{}=_AheadLibEx_{},@{}{}", exp.label, exp.stub, exp.ordinal, noname);
+        let entry = format!("{}=AheadLibEx_{},@{}{}", exp.label, exp.stub, exp.ordinal, noname);
         let _ = writeln!(
             export_pragmas,
             "#pragma comment(linker, \"/EXPORT:\\\"{}\\\"\")",
             entry
         );
-    }
-
-    let mut forward_decls = String::new();
-    for exp in &exports {
         let _ = writeln!(
-            forward_decls,
-            "AHEADLIB_EXTERN PVOID pfnAheadLibEx_{};",
+            export_pragmas,
+            "#pragma comment(linker, \"/alternatename:AheadLibEx_{}=_AheadLibEx_{}\")",
+            exp.stub,
             exp.stub
         );
     }
 
-    let mut trampolines = String::new();
+    let mut forward_decls = String::new();
+    forward_decls.push_str("#ifdef __cplusplus\nextern \"C\" {\n#endif\n");
     for exp in &exports {
         let _ = writeln!(
-            trampolines,
-            "__declspec(naked) AHEADLIB_EXTERN void AheadLibEx_{name}(void) {{ __asm {{ jmp dword ptr [pfnAheadLibEx_{name}] }} }}",
-            name = exp.stub
+            forward_decls,
+            "PVOID pfnAheadLibEx_{} = NULL;",
+            exp.stub
         );
     }
+    forward_decls.push_str("#ifdef __cplusplus\n}\n#endif\n");
+
+    let trampolines = String::new();
+    // x86 uses a separate jump table assembly file for toolchain compatibility.
 
     let mut init_forwarders = String::new();
     for exp in &exports {
@@ -587,6 +798,7 @@ pub fn render_c(ctx: &VsTemplateContext) -> String {
         TPL_C_X86,
         &[
             ("DLL_NAME", ctx.dll_name.to_string()),
+            ("LOAD_ORIGIN_MODULE", render_load_origin_module(ctx)),
             ("EXPORT_PRAGMAS", export_pragmas),
             ("FORWARD_DECLS", forward_decls),
             ("INIT_FORWARDERS", init_forwarders),
@@ -614,13 +826,15 @@ pub fn render_c_x64(ctx: &VsTemplateContext) -> String {
     }
 
     let mut forward_decls = String::new();
+    forward_decls.push_str("#ifdef __cplusplus\nextern \"C\" {\n#endif\n");
     for exp in &exports {
         let _ = writeln!(
             forward_decls,
-            "AHEADLIB_EXTERN PVOID pfnAheadLibEx_{};",
+            "PVOID pfnAheadLibEx_{} = NULL;",
             exp.stub
         );
     }
+    forward_decls.push_str("#ifdef __cplusplus\n}\n#endif\n");
 
     let mut init_forwarders = String::new();
     for exp in &exports {
@@ -643,6 +857,7 @@ pub fn render_c_x64(ctx: &VsTemplateContext) -> String {
         TPL_C_X64,
         &[
             ("DLL_NAME", ctx.dll_name.to_string()),
+            ("LOAD_ORIGIN_MODULE", render_load_origin_module(ctx)),
             ("EXPORT_PRAGMAS", export_pragmas),
             ("FORWARD_DECLS", forward_decls),
             ("INIT_FORWARDERS", init_forwarders),
@@ -670,5 +885,144 @@ pub fn render_asm_x64(ctx: &VsTemplateContext) -> String {
     fill(
         TPL_ASM_X64,
         &[("ASM_EXTERNS", externs), ("ASM_JUMPS", jumps)],
+    )
+}
+
+pub fn render_asm_x86(ctx: &VsTemplateContext) -> String {
+    let exports = prepare_exports(ctx.exports);
+
+    let mut jumps = String::new();
+    for exp in &exports {
+        let _ = writeln!(jumps, "EXTERN _pfnAheadLibEx_{name}:DWORD", name = exp.stub);
+        let _ = writeln!(jumps, "PUBLIC AheadLibEx_{name}", name = exp.stub);
+        let _ = writeln!(jumps, "PUBLIC _AheadLibEx_{name}", name = exp.stub);
+        let _ = writeln!(jumps, "AheadLibEx_{name}:", name = exp.stub);
+        let _ = writeln!(jumps, "_AheadLibEx_{name}:", name = exp.stub);
+        let _ = writeln!(
+            jumps,
+            "    jmp DWORD PTR [_pfnAheadLibEx_{name}]",
+            name = exp.stub
+        );
+        jumps.push('\n');
+    }
+
+    fill(TPL_ASM_X86, &[("ASM_JUMPS", jumps)])
+}
+
+pub fn render_asm_x86_gas(ctx: &VsTemplateContext) -> String {
+    let exports = prepare_exports(ctx.exports);
+
+    let mut externs = String::new();
+    for exp in &exports {
+        let _ = writeln!(externs, "    .extern _pfnAheadLibEx_{}", exp.stub);
+    }
+
+    let mut jumps = String::new();
+    for exp in &exports {
+        let _ = writeln!(jumps, "    .globl AheadLibEx_{}", exp.stub);
+        let _ = writeln!(jumps, "    .globl _AheadLibEx_{}", exp.stub);
+        let _ = writeln!(jumps, "AheadLibEx_{}:", exp.stub);
+        let _ = writeln!(jumps, "_AheadLibEx_{}:", exp.stub);
+        let _ = writeln!(jumps, "    jmp DWORD PTR [_pfnAheadLibEx_{}]\n", exp.stub);
+    }
+
+    fill(
+        TPL_ASM_X86_GAS,
+        &[("ASM_EXTERNS", externs), ("ASM_JUMPS", jumps)],
+    )
+}
+
+pub fn render_asm_x64_gas(ctx: &VsTemplateContext) -> String {
+    let exports = prepare_exports(ctx.exports);
+
+    let mut externs = String::new();
+    for exp in &exports {
+        let _ = writeln!(externs, "    .extern pfnAheadLibEx_{}", exp.stub);
+    }
+
+    let mut jumps = String::new();
+    for exp in &exports {
+        let _ = writeln!(
+            jumps,
+            "    .globl AheadLibEx_{name}\nAheadLibEx_{name}:\n    jmp QWORD PTR [rip + pfnAheadLibEx_{name}]\n",
+            name = exp.stub
+        );
+    }
+
+    fill(
+        TPL_ASM_X64_GAS,
+        &[("ASM_EXTERNS", externs), ("ASM_JUMPS", jumps)],
+    )
+}
+
+pub fn render_def(ctx: &VsTemplateContext, is_x64: bool) -> String {
+    let exports = prepare_exports(ctx.exports);
+
+    fn needs_quotes(name: &str) -> bool {
+        name.chars().any(|c| !(c.is_ascii_alphanumeric() || c == '_' || c == '.'))
+    }
+
+    fn quote_if_needed(name: &str) -> String {
+        if needs_quotes(name) {
+            format!("\"{name}\"")
+        } else {
+            name.to_string()
+        }
+    }
+
+    let mut out = String::new();
+    let _ = writeln!(out, "LIBRARY \"{}\"", ctx.dll_name);
+    let _ = writeln!(out, "EXPORTS");
+
+    for exp in &exports {
+        let export_name = quote_if_needed(&exp.label);
+        let internal = if is_x64 {
+            format!("AheadLibEx_{}", exp.stub)
+        } else {
+            format!("_AheadLibEx_{}", exp.stub)
+        };
+        let noname = if exp.label.starts_with("Noname") {
+            " NONAME"
+        } else {
+            ""
+        };
+        let _ = writeln!(
+            out,
+            "    {}={} @{}{}",
+            export_name, internal, exp.ordinal, noname
+        );
+    }
+
+    out
+}
+
+pub fn render_cmake_lists(ctx: &VsTemplateContext, is_x64: bool) -> String {
+    let cmake_project_name = sanitize_build_target_name(&format!("AheadLibEx_{}", ctx.base_name));
+
+    let (c_src, asm_masm, asm_gas) = if is_x64 {
+        (
+            format!("{}_x64.c", ctx.base_name),
+            format!("{}_x64_jump.asm", ctx.base_name),
+            format!("{}_x64_jump.S", ctx.base_name),
+        )
+    } else {
+        (
+            format!("{}_x86.c", ctx.base_name),
+            format!("{}_x86_jump.asm", ctx.base_name),
+            format!("{}_x86_jump.S", ctx.base_name),
+        )
+    };
+
+    fill(
+        TPL_CMAKE_LISTS,
+        &[
+            ("CMAKE_PROJECT_NAME", cmake_project_name),
+            ("BASE", ctx.base_name.to_string()),
+            ("OUTPUT_NAME", ctx.base_name.to_string()),
+            ("C_SRC", c_src),
+            ("ASM_MASM_SRC", asm_masm),
+            ("ASM_GAS_SRC", asm_gas),
+            ("DEF_SRC", format!("{}.def", ctx.base_name)),
+        ],
     )
 }

@@ -1,6 +1,7 @@
 use aheadlibex_rs::dll::ExportEntry;
 use aheadlibex_rs::templates::{
-    render_asm_x64, render_c, render_c_x64, VsGuids, VsTemplateContext,
+    render_asm_x64, render_asm_x64_gas, render_asm_x86, render_c, render_c_x64, render_cmake_lists,
+    render_def, OriginLoadMode, VsGuids, VsTemplateContext,
 };
 
 fn dummy_ctx<'a>(exports: &'a [ExportEntry]) -> VsTemplateContext<'a> {
@@ -15,6 +16,7 @@ fn dummy_ctx<'a>(exports: &'a [ExportEntry]) -> VsTemplateContext<'a> {
         project_name: "Foo",
         dll_name: "Foo.dll",
         base_name: "Foo",
+        origin_load_mode: OriginLoadMode::SystemDir,
         exports,
         guids,
     }
@@ -48,16 +50,33 @@ fn decorated_names_are_preserved_in_exports() {
     let ctx = dummy_ctx(&exports);
 
     let c_x86 = render_c(&ctx);
-    assert!(c_x86.contains(r#"/EXPORT:\"?Func@@YAXH@Z=_AheadLibEx__Func__YAXH_Z,@1\""#));
-    assert!(c_x86.contains(r#"/EXPORT:\"@Func@8=_AheadLibEx__Func_8,@2\""#));
-    assert!(c_x86.contains(r#"/EXPORT:\"??0Class@@QAE@XZ=_AheadLibEx___0Class__QAE_XZ,@3\""#));
-    assert!(c_x86.contains(r#"/EXPORT:\"Noname345=_AheadLibEx_Unnamed345,@345,NONAME\""#));
+    assert!(c_x86.contains(r#"/EXPORT:\"?Func@@YAXH@Z=AheadLibEx__Func__YAXH_Z,@1\""#));
+    assert!(c_x86.contains(r#"/EXPORT:\"@Func@8=AheadLibEx__Func_8,@2\""#));
+    assert!(c_x86.contains(r#"/EXPORT:\"??0Class@@QAE@XZ=AheadLibEx___0Class__QAE_XZ,@3\""#));
+    assert!(c_x86.contains(r#"/EXPORT:\"Noname345=AheadLibEx_Unnamed345,@345,NONAME\""#));
+    assert!(c_x86.contains(r#"/alternatename:AheadLibEx__Func__YAXH_Z=_AheadLibEx__Func__YAXH_Z"#));
+
+    let asm_x86 = render_asm_x86(&ctx);
+    assert!(asm_x86.contains("PUBLIC AheadLibEx__Func__YAXH_Z"));
+    assert!(asm_x86.contains("PUBLIC _AheadLibEx__Func__YAXH_Z"));
 
     let c_x64 = render_c_x64(&ctx);
     assert!(c_x64.contains(r#"/EXPORT:\"?Func@@YAXH@Z=AheadLibEx__Func__YAXH_Z,@1\""#));
     assert!(c_x64.contains(r#"/EXPORT:\"@Func@8=AheadLibEx__Func_8,@2\""#));
     assert!(c_x64.contains(r#"/EXPORT:\"??0Class@@QAE@XZ=AheadLibEx___0Class__QAE_XZ,@3\""#));
     assert!(c_x64.contains(r#"/EXPORT:\"Noname345=AheadLibEx_Unnamed345,@345,NONAME\""#));
+
+    let def_x86 = render_def(&ctx, false);
+    assert!(def_x86.contains("\"?Func@@YAXH@Z\"=_AheadLibEx__Func__YAXH_Z @1"));
+    assert!(def_x86.contains("\"@Func@8\"=_AheadLibEx__Func_8 @2"));
+    assert!(def_x86.contains("\"??0Class@@QAE@XZ\"=_AheadLibEx___0Class__QAE_XZ @3"));
+    assert!(def_x86.contains("Noname345=_AheadLibEx_Unnamed345 @345 NONAME"));
+
+    let def_x64 = render_def(&ctx, true);
+    assert!(def_x64.contains("\"?Func@@YAXH@Z\"=AheadLibEx__Func__YAXH_Z @1"));
+    assert!(def_x64.contains("\"@Func@8\"=AheadLibEx__Func_8 @2"));
+    assert!(def_x64.contains("\"??0Class@@QAE@XZ\"=AheadLibEx___0Class__QAE_XZ @3"));
+    assert!(def_x64.contains("Noname345=AheadLibEx_Unnamed345 @345 NONAME"));
 }
 
 #[test]
@@ -72,4 +91,26 @@ fn asm_uses_sanitized_stub_names() {
     let asm = render_asm_x64(&ctx);
     assert!(asm.contains("EXTERN pfnAheadLibEx__Decorated_Name___:dq"));
     assert!(asm.contains("AheadLibEx__Decorated_Name___ PROC"));
+
+    let asm_gas = render_asm_x64_gas(&ctx);
+    assert!(asm_gas.contains(".extern pfnAheadLibEx__Decorated_Name___"));
+    assert!(asm_gas.contains("AheadLibEx__Decorated_Name___:"));
+}
+
+#[test]
+fn cmake_template_references_expected_files() {
+    let exports = vec![ExportEntry {
+        name: "Foo".to_string(),
+        ordinal: 1,
+        forwarder: None,
+    }];
+    let ctx = dummy_ctx(&exports);
+
+    let cmake_x86 = render_cmake_lists(&ctx, false);
+    assert!(cmake_x86.contains("project(AheadLibEx_Foo"));
+    assert!(cmake_x86.contains("set(AHEADLIBEX_C \"Foo_x86.c\")"));
+    assert!(cmake_x86.contains("set(AHEADLIBEX_ASM_MASM \"Foo_x86_jump.asm\")"));
+    assert!(cmake_x86.contains("set(AHEADLIBEX_ASM_GAS \"Foo_x86_jump.S\")"));
+    assert!(cmake_x86.contains("set(AHEADLIBEX_DEF \"Foo.def\")"));
+    assert!(cmake_x86.contains("/DEF:${CMAKE_CURRENT_LIST_DIR}/${AHEADLIBEX_DEF}"));
 }

@@ -12,11 +12,16 @@ use windows_sys::Win32::System::Console::{
 
 fn print_usage() {
     println!("AheadLibEx usage:");
-    println!("  aheadlibex-rs.exe <source|vs2022|vs2026> <dll_path> <output_dir>");
+    println!("  aheadlibex-rs.exe <source|vs2022|vs2026|cmake> <dll_path> <output_dir> [options]");
     println!("Examples:");
     println!("  aheadlibex-rs.exe source  \"C:\\\\path\\\\to\\\\foo.dll\" \"C:\\\\path\\\\to\\\\out\"");
     println!("  aheadlibex-rs.exe vs2022 \"C:\\\\path\\\\to\\\\foo.dll\" \"C:\\\\path\\\\to\\\\out\"");
     println!("  aheadlibex-rs.exe vs2026 \"C:\\\\path\\\\to\\\\foo.dll\" \"C:\\\\path\\\\to\\\\out\"");
+    println!("  aheadlibex-rs.exe cmake  \"C:\\\\path\\\\to\\\\foo.dll\" \"C:\\\\path\\\\to\\\\out\"");
+    println!("Options:");
+    println!("  --origin-mode <system|samedir|custom>   Where to load the original DLL (default: system).");
+    println!("  --origin-name <name.dll>               Used when --origin-mode samedir (default: <stem>_orig.dll).");
+    println!("  --origin-path <path>                   Used when --origin-mode custom (absolute path, UNC, or relative to proxy DLL dir).");
     println!("No arguments -> GUI mode (console auto-detached on Windows).");
 }
 
@@ -69,25 +74,97 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    if args.len() != 3 {
-        bail!("Usage: AheadLibEx <source|vs2022|vs2026> <dll_path> <output_dir>");
+    if args.len() < 3 {
+        bail!("Usage: AheadLibEx <source|vs2022|vs2026|cmake> <dll_path> <output_dir> [options]");
     }
 
     let target = match args[0].to_ascii_lowercase().as_str() {
         "source" | "src" | "c" => OutputTarget::Source,
         "vs2022" | "2022" => OutputTarget::Vs2022,
         "vs2026" | "2026" => OutputTarget::Vs2026,
-        other => bail!("Unknown target '{}'. Use source|vs2022|vs2026.", other),
+        "cmake" | "cml" => OutputTarget::CMake,
+        other => bail!(
+            "Unknown target '{}'. Use source|vs2022|vs2026|cmake.",
+            other
+        ),
     };
 
     let dll_path = PathBuf::from(&args[1]);
     let output_dir = PathBuf::from(&args[2]);
 
-    let written = generate_cli(target, &dll_path, &output_dir)?;
+    let origin_load_mode = parse_origin_load_mode(&args[3..], &dll_path)?;
+    let written = generate_cli(target, &dll_path, &output_dir, origin_load_mode)?;
     println!("Generated {} file(s):", written.len());
     for path in written {
         println!("{path}");
     }
 
     Ok(())
+}
+
+fn parse_origin_load_mode(
+    args: &[String],
+    dll_path: &PathBuf,
+) -> Result<aheadlibex_rs::templates::OriginLoadModeOwned> {
+    use aheadlibex_rs::templates::OriginLoadModeOwned;
+
+    let mut mode: Option<String> = None;
+    let mut origin_name: Option<String> = None;
+    let mut origin_path: Option<String> = None;
+
+    let mut i = 0;
+    while i < args.len() {
+        let key = args[i].as_str();
+        match key {
+            "--origin-mode" | "--origin" => {
+                let Some(v) = args.get(i + 1) else {
+                    bail!("Missing value for {}", key);
+                };
+                mode = Some(v.to_string());
+                i += 2;
+            }
+            "--origin-name" => {
+                let Some(v) = args.get(i + 1) else {
+                    bail!("Missing value for {}", key);
+                };
+                origin_name = Some(v.to_string());
+                i += 2;
+            }
+            "--origin-path" => {
+                let Some(v) = args.get(i + 1) else {
+                    bail!("Missing value for {}", key);
+                };
+                origin_path = Some(v.to_string());
+                i += 2;
+            }
+            "-h" | "--help" | "help" => {
+                print_usage();
+                std::process::exit(0);
+            }
+            other => {
+                bail!("Unknown option '{}'. Use --help for usage.", other);
+            }
+        }
+    }
+
+    let mode = mode.unwrap_or_else(|| "system".to_string());
+    match mode.to_ascii_lowercase().as_str() {
+        "system" | "systemdir" | "sys" => Ok(OriginLoadModeOwned::system_dir()),
+        "samedir" | "same" | "local" => {
+            let default_name = dll_path
+                .file_stem()
+                .map(|s| format!("{}_orig.dll", s.to_string_lossy()))
+                .unwrap_or_else(|| "origin_orig.dll".to_string());
+            Ok(OriginLoadModeOwned::same_dir(
+                origin_name.unwrap_or(default_name),
+            ))
+        }
+        "custom" | "path" => {
+            let Some(p) = origin_path else {
+                bail!("--origin-mode custom requires --origin-path <path>");
+            };
+            Ok(OriginLoadModeOwned::custom_path(p))
+        }
+        other => bail!("Unknown --origin-mode '{}'. Use system|samedir|custom.", other),
+    }
 }

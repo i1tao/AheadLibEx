@@ -7,6 +7,11 @@
 
 #include <windows.h>
 
+#ifdef UNREFERENCED_PARAMETER
+#undef UNREFERENCED_PARAMETER
+#endif
+#define UNREFERENCED_PARAMETER(P) (void)(P)
+
 {{EXPORT_PRAGMAS}}
 
 #ifdef __cplusplus
@@ -30,23 +35,9 @@ static VOID WINAPI free_origin_module(void)
     }
 }
 
-static BOOL WINAPI load_original_module(void)
+static BOOL WINAPI load_original_module(HMODULE module)
 {
-    TCHAR module_path[MAX_PATH] = { 0 };
-    TCHAR message[MAX_PATH] = { 0 };
-
-    GetSystemDirectory(module_path, MAX_PATH);
-    lstrcat(module_path, TEXT("\\"));
-    lstrcat(module_path, TEXT("{{DLL_NAME}}"));
-
-    g_origin_module_handle = LoadLibrary(module_path);
-    if (!g_origin_module_handle)
-    {
-        wsprintf(message, TEXT("Cannot locate %s, AheadLibEx cannot continue.\nerror code:0x%08X"), module_path, GetLastError());
-        MessageBox(NULL, message, TEXT("AheadLibEx"), MB_ICONSTOP);
-    }
-
-    return g_origin_module_handle != NULL;
+{{LOAD_ORIGIN_MODULE}}
 }
 
 static FARPROC WINAPI get_address(PCSTR proc_name)
@@ -88,7 +79,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, PVOID reserved)
     if (reason == DLL_PROCESS_ATTACH)
     {
         DisableThreadLibraryCalls(module);
-        if (!load_original_module())
+        if (!load_original_module(module))
         {
             return FALSE;
         }
