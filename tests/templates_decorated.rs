@@ -1,7 +1,7 @@
 use aheadlibex_rs::dll::ExportEntry;
 use aheadlibex_rs::templates::{
     render_asm_x64, render_asm_x64_gas, render_asm_x86, render_c, render_c_x64, render_cmake_lists,
-    render_def, OriginLoadMode, VsGuids, VsTemplateContext,
+    render_def, render_vcxproj, OriginLoadMode, VsGuids, VsTemplateContext,
 };
 
 fn dummy_ctx<'a>(exports: &'a [ExportEntry]) -> VsTemplateContext<'a> {
@@ -113,4 +113,23 @@ fn cmake_template_references_expected_files() {
     assert!(cmake_x86.contains("set(AHEADLIBEX_ASM_GAS \"Foo_x86_jump.S\")"));
     assert!(cmake_x86.contains("set(AHEADLIBEX_DEF \"Foo.def\")"));
     assert!(cmake_x86.contains("/DEF:${CMAKE_CURRENT_LIST_DIR}/${AHEADLIBEX_DEF}"));
+}
+
+#[test]
+fn win32_vcxproj_enables_masm_safeseh() {
+    let exports = vec![ExportEntry {
+        name: "Foo".to_string(),
+        ordinal: 1,
+        forwarder: None,
+    }];
+    let ctx = dummy_ctx(&exports);
+
+    let win32 = render_vcxproj(&ctx, false);
+    assert!(win32.contains(
+        "<UseSafeExceptionHandlers>true</UseSafeExceptionHandlers>"
+    ));
+    assert!(!win32.contains("/SAFESEH:NO"));
+
+    let x64 = render_vcxproj(&ctx, true);
+    assert!(!x64.contains("UseSafeExceptionHandlers"));
 }
