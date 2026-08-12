@@ -4,6 +4,22 @@ AheadLibEx (Rust) is a Windows DLL proxy generator. It reads a target DLL, parse
 
 中文文档请见 `README.zh-CN.md`.
 
+## Disclaimer
+
+AheadLibEx is intended to simplify DLL export analysis and proxy project generation. This program is provided for software compatibility work, reverse-engineering research, teaching, and authorized security testing. DLL proxying can also be abused; making this project publicly available does not imply approval of any unlawful or unauthorized use.
+
+This program may only be used on software and systems owned by the user or covered by clear authorization from the owner. Work performed for a client or employer must remain within the agreed scope. Users are responsible for complying with the laws of their country or region and with any applicable contracts, software licenses, workplace rules, and confidentiality requirements.
+
+This project must not be used for unauthorized access, persistence on someone else's system, credential theft, data destruction, malware delivery, or bypassing security products or access controls without permission. Help will not be provided for those purposes, and related issues, discussions, or contributions may be closed or removed.
+
+AheadLibEx only generates source code and project files. The generated content has not been audited and should not be treated as production-ready. It should be reviewed, tested in an isolated environment, and used only after recoverable backups have been made. A DLL proxy changes how a program loads code; mistakes can cause crashes, data loss, security problems, or conflicts with security software. A successful parse or build does not prove that the result is safe, correct, compatible, or lawful for a particular use.
+
+Users must have the right to use the DLL and any other files supplied to the tool. This repository's license does not grant rights to third-party DLLs, commercial software, system files, trademarks, private data, or generated code containing third-party material. Private binaries, credentials, personal information, customer data, and confidential logs must not be uploaded to public issues or pull requests.
+
+This project is provided **AS IS**, with no promise that it will work for a particular purpose or be free of defects. Anyone who builds, modifies, runs, shares, or deploys the program or its output does so at their own risk. To the extent allowed by applicable law, the authors and contributors are not responsible for data loss, service interruption, system damage, security incidents, third-party claims, legal consequences, or other losses caused by using this project or generated code. This does not exclude any responsibility that cannot lawfully be excluded.
+
+This statement explains the intended use and responsibility boundaries of the project. It is not legal advice and does not change the `GPL-3.0-only` license. The full license, including its warranty and liability terms, is in `LICENSE`. If permission to use or distribute any material is unclear, resolve that question before proceeding.
+
 ## Outputs
 - `source`: proxy sources only
 - `vs2022`: Visual Studio 2022 solution and project
